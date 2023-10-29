@@ -103,7 +103,7 @@ for year in years:
             data = pd.concat([data, lap_data[cols + weather_cols]])
 
 # Save data
-data.to_hdf("f1_dataset.h5", key="data", format='fixed', mode='w')
+data.to_hdf("data/f1_dataset.h5", key="data", format='fixed', mode='w')
 
 # Save ID definitions
 def write_ids(id_dict, name):
@@ -111,8 +111,8 @@ def write_ids(id_dict, name):
         for key, val in id_dict.items():
             f.write(str(val) + "," + key + "\n")
 
-write_ids(track_ids, "track_ids.txt")
-write_ids(team_ids, "team_ids.txt")
-write_ids(compound_ids, "compound_ids.txt")
+write_ids(track_ids, "data/track_ids.txt")
+write_ids(team_ids, "data/team_ids.txt")
+write_ids(compound_ids, "data/compound_ids.txt")
 
 breakpoint()

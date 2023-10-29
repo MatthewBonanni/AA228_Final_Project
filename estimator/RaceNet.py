@@ -1,5 +1,5 @@
-import pytorch as torch
-from pytorch.nn import Functional as F
+import torch
+from torch.nn import Functional as F
 
 import pandas as pd
 import numpy as np

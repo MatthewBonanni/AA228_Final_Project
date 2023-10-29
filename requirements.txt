@@ -1,0 +1,8 @@
+pandas == 2.1.1
+numpy == 1.26.0
+
+# Torch install might be more complicated for diff gpu avail on Windows.
+torch
+matplotlib
+tqdm
+fastf1
