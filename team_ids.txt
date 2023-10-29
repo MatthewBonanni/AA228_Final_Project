@@ -1,0 +1,11 @@
+0,AlphaTauri
+1,Red Bull Racing
+2,Alpine
+3,Ferrari
+4,Aston Martin
+5,McLaren
+6,Mercedes
+7,Haas F1 Team
+8,Williams
+9,Alfa Romeo Racing
+10,Alfa Romeo
