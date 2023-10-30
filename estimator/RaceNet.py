@@ -1,5 +1,6 @@
 import os
 import pdb
+from datetime import datetime
 
 import torch
 from torch.nn import functional as F
@@ -34,10 +35,8 @@ cols = [
     'TyreLife',
     'CompoundID',
     'Stint',
-    'Sector1Time',
-    'Sector2Time',
-    'Sector3Time',
     'Position']
+
 ids = [
     'TrackID',
     'DriverID',
@@ -55,7 +54,8 @@ weather_cols = [
 class RaceNet(torch.nn.Module):
     def __init__(self, args, num_drivers, num_tracks, num_teams,  activation=F.relu):
         super().__init__()
-
+        
+        self.in_dim = len(cols) - len(ids) + len(weather_cols) + 10*len(ids)
         self.num_layers = args["num_layers"]
 
         self.in_dim = len(cols) - len(ids) + len(weather_cols) + 10*len(ids)
@@ -111,7 +111,7 @@ class F1Dataset(Dataset):
         data = self.inputs.iloc[idx]
         
         val_cols = [i for i in cols if i not in ids]
-        input_vals = data.loc[val_cols]
+        input_vals = data.loc[val_cols + weather_cols]
         for key, value in input_vals.items():
             if type(value) == Timedelta:
                 input_vals.loc[key] = value.total_seconds()
@@ -162,7 +162,7 @@ if __name__=="__main__":
 
     train_data = splits[0]
 
-    train_dataloader = DataLoader(train_data, batch_size = 100, shuffle=True)
+    train_dataloader = DataLoader(train_data, batch_size = 1000, shuffle=True)
     val_dataloader = DataLoader(splits[1],batch_size=100, shuffle=False)
     test_dataloader = DataLoader(splits[2],batch_size=100, shuffle=False)
 
@@ -180,6 +180,6 @@ if __name__=="__main__":
         
         print("Loss:", train_loss)
 
-    torch.save(model.state_dict(), 'outputs/racenet.pt')
-
-
+    now = datetime.now()
+    filename = 'outputs/racenet_' + now.strftime('%H_%M_%S') + '.pt'
+    torch.save(model.state_dict(), filename)
