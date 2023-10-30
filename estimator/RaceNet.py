@@ -15,13 +15,12 @@ from tqdm import tqdm
 
 Timedelta = pd._libs.tslibs.timedeltas.Timedelta
 args = {
-      'num_layers': 6,
-      'in_dim': 40,
+      'num_layers': 3,
       'hidden_dim': 256,
       'out_dim': 1,
       'emb_dim': 10,
       'dropout': 0.5,
-      'lr': 0.01,
+      'lr': 0.001,
       'epochs': 100,
   }
 
@@ -58,6 +57,8 @@ class RaceNet(torch.nn.Module):
         super().__init__()
 
         self.num_layers = args["num_layers"]
+
+        self.in_dim = len(cols) - len(ids) + len(weather_cols) + 10*len(ids)
         self.activation = activation
         # Initialize Activation Fn
         self.batch_norms = torch.nn.ModuleList([torch.nn.BatchNorm1d(num_features=args["hidden_dim"])\
@@ -66,7 +67,7 @@ class RaceNet(torch.nn.Module):
         ## Initialize Linear Layers
         self.linears = \
             torch.nn.ModuleList(
-                [torch.nn.Linear(in_features=args["in_dim"], out_features=args["hidden_dim"])])
+                [torch.nn.Linear(in_features=self.in_dim, out_features=args["hidden_dim"])])
         self.linears.extend([torch.nn.Linear(in_features=args["hidden_dim"], out_features=args["hidden_dim"])\
                               for i in range(args["num_layers"])])
         self.linears.append(torch.nn.Linear(in_features=args["hidden_dim"], out_features=args["out_dim"]))
@@ -175,7 +176,7 @@ if __name__=="__main__":
         train_loss = train(train_dataloader, model, optimizer)
         writer.add_scalar('Loss/train', train_loss, i)
         val_loss = eval(val_dataloader,model,loss_fn=F.l1_loss)
-        writer.add_scalar('Accuracy/eval', train_loss, i)
+        writer.add_scalar('Accuracy/eval', val_loss, i)
         
         print("Loss:", train_loss)
 
