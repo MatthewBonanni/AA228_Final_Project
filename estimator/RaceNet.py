@@ -36,6 +36,7 @@ cols = [
     'CompoundID',
     'Stint',
     'Position']
+
 ids = [
     'TrackID',
     'DriverID',
@@ -54,7 +55,7 @@ class RaceNet(torch.nn.Module):
     def __init__(self, args, num_drivers, num_tracks, num_teams,  activation=F.relu):
         super().__init__()
         
-        self.in_dim = len(cols) + len(weather_cols) + 10*len(ids)
+        self.in_dim = len(cols) - len(ids) + len(weather_cols) + 10*len(ids)
         self.num_layers = args["num_layers"]
         self.activation = activation
         # Initialize Activation Fn
@@ -108,7 +109,7 @@ class F1Dataset(Dataset):
         data = self.inputs.iloc[idx]
         
         val_cols = [i for i in cols if i not in ids]
-        input_vals = data.loc[val_cols]
+        input_vals = data.loc[val_cols + weather_cols]
         for key, value in input_vals.items():
             if type(value) == Timedelta:
                 input_vals.loc[key] = value.total_seconds()
@@ -173,7 +174,7 @@ if __name__=="__main__":
         train_loss = train(train_dataloader, model, optimizer)
         writer.add_scalar('Loss/train', train_loss, i)
         val_loss = eval(val_dataloader,model,loss_fn=F.l1_loss)
-        writer.add_scalar('Accuracy/eval', train_loss, i)
+        writer.add_scalar('Accuracy/eval', val_loss, i)
         
         print("Loss:", train_loss)
 
