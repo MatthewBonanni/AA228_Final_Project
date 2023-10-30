@@ -16,13 +16,11 @@ from tqdm import tqdm
 
 Timedelta = pd._libs.tslibs.timedeltas.Timedelta
 args = {
-      'num_layers': 3,
+      'num_layers': 4,
       'hidden_dim': 256,
       'out_dim': 1,
       'emb_dim': 10,
       'dropout': 0.5,
-      'lr': 0.001,
-      'epochs': 100,
   }
 
 cols = [
@@ -167,7 +165,7 @@ if __name__=="__main__":
     model = RaceNet(args, num_drivers=26, num_tracks=27, num_teams=11)
 
     epochs = 100
-    optimizer = torch.optim.Adam(model.parameters(),lr=args["lr"],)
+    optimizer = torch.optim.Adam(model.parameters(),lr=0.001,)
 
     for i in range(epochs):
         print("Epoch:", i)
@@ -179,7 +177,8 @@ if __name__=="__main__":
         print("Loss:", train_loss)
 
     test_loss = eval(test_dataloader, model, loss_fn =F.l1_loss)
-    
+    print(test_loss)
+
     now = datetime.now()
     filename = 'outputs/racenet_' + now.strftime('%H_%M_%S') + '.pt'
     torch.save(model.state_dict(), filename)
