@@ -1,5 +1,6 @@
 import os
 import pdb
+from datetime import datetime
 
 import torch
 from torch.nn import functional as F
@@ -15,13 +16,12 @@ from tqdm import tqdm
 
 Timedelta = pd._libs.tslibs.timedeltas.Timedelta
 args = {
-      'num_layers': 6,
-      'in_dim': 40,
+      'num_layers': 3,
       'hidden_dim': 256,
       'out_dim': 1,
       'emb_dim': 10,
       'dropout': 0.5,
-      'lr': 0.01,
+      'lr': 0.001,
       'epochs': 100,
   }
 
@@ -35,9 +35,6 @@ cols = [
     'TyreLife',
     'CompoundID',
     'Stint',
-    'Sector1Time',
-    'Sector2Time',
-    'Sector3Time',
     'Position']
 ids = [
     'TrackID',
@@ -56,7 +53,8 @@ weather_cols = [
 class RaceNet(torch.nn.Module):
     def __init__(self, args, num_drivers, num_tracks, num_teams,  activation=F.relu):
         super().__init__()
-
+        
+        self.in_dim = len(cols) + len(weather_cols) + 10*len(ids)
         self.num_layers = args["num_layers"]
         self.activation = activation
         # Initialize Activation Fn
@@ -66,7 +64,7 @@ class RaceNet(torch.nn.Module):
         ## Initialize Linear Layers
         self.linears = \
             torch.nn.ModuleList(
-                [torch.nn.Linear(in_features=args["in_dim"], out_features=args["hidden_dim"])])
+                [torch.nn.Linear(in_features=self.in_dim, out_features=args["hidden_dim"])])
         self.linears.extend([torch.nn.Linear(in_features=args["hidden_dim"], out_features=args["hidden_dim"])\
                               for i in range(args["num_layers"])])
         self.linears.append(torch.nn.Linear(in_features=args["hidden_dim"], out_features=args["out_dim"]))
@@ -161,7 +159,7 @@ if __name__=="__main__":
 
     train_data = splits[0]
 
-    train_dataloader = DataLoader(train_data, batch_size = 100, shuffle=True)
+    train_dataloader = DataLoader(train_data, batch_size = 1000, shuffle=True)
     val_dataloader = DataLoader(splits[1],batch_size=100, shuffle=False)
     test_dataloader = DataLoader(splits[2],batch_size=100, shuffle=False)
 
@@ -179,6 +177,6 @@ if __name__=="__main__":
         
         print("Loss:", train_loss)
 
-    torch.save(model.state_dict(), 'outputs/racenet.pt')
-
-
+    now = datetime.now()
+    filename = 'outputs/racenet_' + now.strftime('%H_%M_%S') + '.pt'
+    torch.save(model.state_dict(), filename)
