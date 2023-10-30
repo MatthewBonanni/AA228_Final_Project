@@ -16,7 +16,7 @@
 15,Turkish Grand Prix
 16,United States Grand Prix
 17,Mexico City Grand Prix
-18,SÃ£o Paulo Grand Prix
+18,São Paulo Grand Prix
 19,Qatar Grand Prix
 20,Saudi Arabian Grand Prix
 21,Abu Dhabi Grand Prix
