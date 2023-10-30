@@ -77,6 +77,8 @@ class RaceNet(torch.nn.Module):
         
         self.in_dim = len(cols) - len(ids) + len(weather_cols) + args["emb_dim"]*len(ids)
         self.num_layers = args["num_layers"]
+
+        self.in_dim = len(cols) - len(ids) + len(weather_cols) + 10*len(ids)
         self.activation = activation
         # Initialize Activation Fn
         self.batch_norms = torch.nn.ModuleList([torch.nn.BatchNorm1d(num_features=args["hidden_dim"])\
