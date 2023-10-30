@@ -146,7 +146,7 @@ def eval(dataloader, model, loss_fn=F.mse_loss):
         out = model(batch[0],batch[1]).squeeze()
         label = batch[2].squeeze().to(torch.float32)
 
-        loss += loss_fn(out, label)/torch.mean(label)
+        loss += loss_fn(out, label)/torch.mean(label)/len(dataloader)
 
     return loss.item()
 
@@ -178,6 +178,8 @@ if __name__=="__main__":
         
         print("Loss:", train_loss)
 
+    test_loss = eval(test_dataloader, model, loss_fn =F.l1_loss)
+    
     now = datetime.now()
     filename = 'outputs/racenet_' + now.strftime('%H_%M_%S') + '.pt'
     torch.save(model.state_dict(), filename)
