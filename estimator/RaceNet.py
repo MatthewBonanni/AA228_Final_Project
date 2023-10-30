@@ -3,7 +3,9 @@ import pdb
 
 import torch
 from torch.nn import functional as F
-from torch.utils.data import Dataset, DataLoader, random_split, Subset
+from torch.utils.data import Dataset, DataLoader, random_split
+
+from torch.utils.tensorboard import SummaryWriter
 
 import pandas as pd
 import numpy as np
@@ -135,25 +137,48 @@ def train(dataloader, model, optimizer, loss_fn=F.mse_loss):
 
     return loss.item()
 
+def eval(dataloader, model, loss_fn=F.mse_loss):
+
+    model.eval()
+    loss = 0
+
+    for step, batch in enumerate(tqdm(dataloader, desc="Iteration")):
+
+        out = model(batch[0],batch[1]).squeeze()
+        label = batch[2].squeeze().to(torch.float32)
+
+        loss += loss_fn(out, label)/torch.mean(label)
+
+    return loss.item()
 
 if __name__=="__main__":
+    print(torch.cuda.is_available())
+    writer = SummaryWriter()
     data = pd.read_hdf("data/f1_dataset.h5")
     train_data = F1Dataset(data)
     generator = torch.Generator().manual_seed(228)
     splits = random_split(train_data, [0.7, 0.2, 0.1], generator)
 
-    train_data = splits[0]    
+    train_data = splits[0]
+
     train_dataloader = DataLoader(train_data, batch_size = 100, shuffle=True)
+    val_dataloader = DataLoader(splits[1],batch_size=100, shuffle=False)
+    test_dataloader = DataLoader(splits[2],batch_size=100, shuffle=False)
 
     model = RaceNet(args, num_drivers=26, num_tracks=27, num_teams=11)
+
     epochs = 100
     optimizer = torch.optim.Adam(model.parameters(),lr=args["lr"],)
+
     for i in range(epochs):
         print("Epoch:", i)
-        loss = train(train_dataloader, model, optimizer)
-        breakpoint()
-        print("Loss:", loss)
+        train_loss = train(train_dataloader, model, optimizer)
+        writer.add_scalar('Loss/train', train_loss, i)
+        val_loss = eval(val_dataloader,model,loss_fn=F.l1_loss)
+        writer.add_scalar('Accuracy/eval', train_loss, i)
+        
+        print("Loss:", train_loss)
 
-
+    torch.save(model.state_dict(), 'outputs/racenet.pt')
 
 

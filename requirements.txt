@@ -2,7 +2,11 @@ pandas == 2.1.1
 numpy == 1.26.0
 
 # Torch install might be more complicated for diff gpu avail on Windows.
-torch
+## Need to specifically install with CUDA dependencies.
+# More straightforward on Linux systems, no need to specify CUDA
+torch == 2.1.0
+
+tensorboard
 matplotlib
 tqdm
 fastf1
