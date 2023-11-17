@@ -19,10 +19,10 @@ from tqdm import tqdm
 Timedelta = pd._libs.tslibs.timedeltas.Timedelta
 args = {
       'num_layers': 3,
-      'hidden_dim': 512,
+      'hidden_dim': 640,
       'out_dim': 1,
       'emb_dim': 10,
-      'dropout': 0.4,
+      'dropout': 0.5,
       'num_monte_carlo': 100,
   }
 
@@ -31,7 +31,7 @@ const_bnn_prior_parameters = {
         "prior_sigma": 1.0,
         "posterior_mu_init": 0.0,
         "posterior_rho_init": -3.0,
-        "type": "Reparameterization",  # Flipout or Reparameterization
+        "type": "Flipout",  # Flipout or Reparameterization
         "moped_enable": False,  # True to initialize mu/sigma from the pretrained dnn weights
         "moped_delta": 0.5,
 }
@@ -61,6 +61,23 @@ weather_cols = [
     'TrackTemp',
     'WindDirection',
     'WindSpeed']
+
+class EarlyStopper:
+    def __init__(self, patience=1, min_delta=0):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.min_validation_loss = float('inf')
+
+    def early_stop(self, validation_loss):
+        if validation_loss < self.min_validation_loss:
+            self.min_validation_loss = validation_loss
+            self.counter = 0
+        elif validation_loss > (self.min_validation_loss + self.min_delta):
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
 
 class RaceNet(torch.nn.Module):
     def __init__(self, args, num_drivers, num_tracks, num_teams,  activation=F.relu):
@@ -141,8 +158,7 @@ def train(dataloader, model, optimizer, loss_fn=F.mse_loss):
             out = model(batch[0],batch[1]).squeeze()
             label = batch[2].squeeze().to(torch.float32)
             kl = get_kl_loss(model)
-            loss = loss_fn(out, label) + kl/batch[0].size(0)
-            
+            loss = loss_fn(out, label) + kl
 
         loss.backward()
         optimizer.step()
@@ -157,11 +173,11 @@ def eval(dataloader, model, loss_fn=F.mse_loss):
         for batch in tqdm(dataloader, desc="Iteration"):
             output_mc = []
             for mc_run in range(args["num_monte_carlo"]):
-                outs = model(batch[0],batch[1])
+                outs = model(batch[0],batch[1]).squeeze()
                 output_mc.append(outs)
             output = torch.stack(output_mc)  
             y_pred = output.mean(dim=0)
-            test_acc += (torch.abs(y_pred.data - batch[2].squeeze())/batch[2].squeeze()).mean()/len(dataloader)
+            test_acc += (torch.abs(y_pred - batch[2])/batch[2]).mean()/len(dataloader)
 
     return test_acc
 
@@ -185,14 +201,17 @@ if __name__=="__main__":
     epochs = 60
     optimizer = torch.optim.Adam(model.parameters(),lr=0.001,)
 
+    stopper = EarlyStopper(5, 0.01)
+
     for i in range(epochs):
         print("Epoch:", i)
         train_loss = train(train_dataloader, model, optimizer)
         writer.add_scalar('Loss/train', train_loss, i)
         val_loss = eval(val_dataloader,model,loss_fn=F.l1_loss)
         writer.add_scalar('Accuracy/eval', val_loss, i)
-        
         print("Loss:", train_loss)
+        if stopper.early_stop(val_loss):
+            break
 
     test_loss = eval(test_dataloader, model, loss_fn =F.l1_loss)
     print("Final Test Loss:",test_loss)
