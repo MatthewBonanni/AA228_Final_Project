@@ -42,6 +42,7 @@ cols = [
 
 ids = [
     'TrackID',
+    'TrackStatusID',
     'DriverID',
     'TeamID',
 ]
@@ -82,7 +83,7 @@ class RaceNet(torch.nn.Module):
         self.activation = activation
         # Initialize Activation Fn
         self.batch_norms = torch.nn.ModuleList([torch.nn.BatchNorm1d(num_features=args["hidden_dim"])\
-                                                 for i in range(args["num_layers"]-1)])
+                                                 for i in range(args["num_layers"])])
 
         ## Initialize Linear Layers
         self.linears = \
@@ -94,14 +95,16 @@ class RaceNet(torch.nn.Module):
 
         # Initialize Embeddings For Categorical Data
         track_emb = torch.nn.Embedding(num_embeddings = num_tracks, embedding_dim = args["emb_dim"])
+        track_stat_emb = torch.nn.Embedding(num_embeddings = 7, embedding_dim = args["emb_dim"])
         driver_emb = torch.nn.Embedding(num_embeddings = num_drivers, embedding_dim = args["emb_dim"])
         team_emb = torch.nn.Embedding(num_embeddings = num_teams, embedding_dim = args["emb_dim"])
-        self.embs = [track_emb, driver_emb, team_emb]
+        self.embs = [track_emb, track_stat_emb, driver_emb, team_emb]
 
         self.dropout = args["dropout"]
         
     def forward(self, batched_vals, batched_ids):
         beds = []
+        batched_ids[:,ids.index('TrackStatusID')] = batched_ids[:,ids.index('TrackStatusID')] -1
         for i, embed in enumerate(self.embs):
             beds.append(embed(batched_ids[:,i]))         
         input = batched_vals
@@ -109,10 +112,8 @@ class RaceNet(torch.nn.Module):
             input = torch.cat((input, bed),dim=1)
         input = input.to(torch.float32)
 
-        input = self.linears[0](input)
         for i in range(self.num_layers-1):
-            input = self.linears[i+1](input)            
-            input = self.activation(input)      
+            input = self.linears[i](input)      
             input = self.batch_norms[i](input)
             input = F.dropout(input, p=self.dropout, training = self.training)
         
@@ -187,13 +188,13 @@ if __name__=="__main__":
 
     train_data = splits[0]
 
-    train_dataloader = DataLoader(train_data, batch_size = 640, shuffle=True)
-    val_dataloader = DataLoader(splits[1],batch_size=1280, shuffle=False)
+    train_dataloader = DataLoader(train_data, batch_size = 1000, shuffle=True)
+    val_dataloader = DataLoader(splits[1],batch_size=100, shuffle=False)
     test_dataloader = DataLoader(splits[2],batch_size=100, shuffle=False)
 
     model = RaceNet(args, num_drivers=26, num_tracks=27, num_teams=11)
 
-    epochs = 500
+    epochs = 100
     optimizer = torch.optim.Adam(model.parameters(),lr=0.001,)
 
     stopper = EarlyStopper(20, 0.01)
@@ -215,5 +216,7 @@ if __name__=="__main__":
 
     test_loss = eval(test_dataloader, model, loss_fn =F.l1_loss)
     print(test_loss)
-    if val_loss < min_val_loss:
-        torch.save(model.state_dict(), filename)
+
+    now = datetime.now()
+    filename = 'outputs/racenet_' + now.strftime('%H_%M_%S') + '.pt'
+    torch.save(model.state_dict(), filename)
