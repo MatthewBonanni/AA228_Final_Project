@@ -12,7 +12,6 @@ cols = [
     'DriverID',
     'TeamID',
     'LapNumber',
-    'TrackStatusID',
     'TyreLife',
     'CompoundID',
     'Stint',
@@ -24,6 +23,11 @@ cols = [
     'SpeedFL',
     'SpeedST',
     'Position',
+    'PitStop',
+    'YellowFlag',
+    'RedFlag',
+    'SC',
+    'VSC',
     'LapTime']
 weather_cols = [
     'AirTemp',
@@ -70,7 +74,12 @@ for year in years:
         session = ff1.get_session(year, round_id, 'R')
         session.load(messages=False)
         lap_data = copy.deepcopy(session.laps)
-        lap_data = lap_data[lap_data['IsAccurate'] == True]
+
+        #lap_data = lap_data[lap_data['IsAccurate'] == True] # Might be removing important laps
+        #Instead Filter out NaT Laps
+        lap_data = lap_data[pd.isnull(lap_data['LapTime'])==False]
+        # Filter out "UNKNOWN" compound
+        lap_data = lap_data[lap_data["Compound"]!="UNKNOWN"]
 
         # Append and convert some columns
         lap_data['Year'] = year
@@ -78,6 +87,18 @@ for year in years:
         lap_data['CompoundID'] = [int(compound_ids[comp]) for comp in lap_data['Compound']]
         lap_data['TrackStatusID'] = lap_data['TrackStatus'].to_numpy(dtype=int)
         lap_data['StartTime'] = lap_data['Time'] - lap_data['LapTime']
+        lap_data["PitStop"] = np.zeros((len(lap_data),1))
+        lap_data["PitStop"] = lap_data["PitStop"].where(pd.isnull(lap_data["PitOutTime"]),1)
+        lap_data["YellowFlag"] = np.ones((len(lap_data),1))
+        lap_data["YellowFlag"] = lap_data["YellowFlag"].where(['2' in ls for ls in lap_data["TrackStatus"]],0)
+        lap_data["RedFlag"] = np.ones((len(lap_data),1))
+        lap_data["RedFlag"] = lap_data["RedFlag"].where(['5' in ls for ls in lap_data["TrackStatus"]],0)
+        lap_data["SC"] = np.ones((len(lap_data),1))
+        lap_data["SC"] = lap_data["SC"].where(['4' in ls for ls in lap_data["TrackStatus"]],0)
+        lap_data["VSC"] = np.ones((len(lap_data),1))
+        lap_data["VSC"] = lap_data["VSC"].where(['6' in ls for ls in lap_data["TrackStatus"]],0)
+
+        lap_data = lap_data[lap_data['RedFlag']==0]
             
         team_ids_arr = np.zeros(len(lap_data), dtype=int)
         for i_lap, team_name in enumerate(lap_data['Team']):
@@ -104,12 +125,12 @@ for year in years:
 
         # Get weather data
         lap_data[weather_cols] = np.nan
-        breakpoint()
+        #breakpoint()
         for i_lap in range(len(lap_data)):
             time_delta = (session.weather_data['Time'] -
                         lap_data['StartTime'].iloc[i_lap])
             i_weather = np.argmin(np.abs(time_delta))
-            breakpoint()
+            #breakpoint()
             lap_data.loc[lap_data.index[i_lap],
                         weather_cols] = \
                             session.weather_data.loc[session.weather_data.index[i_weather],
