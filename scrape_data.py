@@ -29,6 +29,7 @@ cols = [
     'SC',
     'VSC',
     'LapTime']
+
 weather_cols = [
     'AirTemp',
     'Humidity',
