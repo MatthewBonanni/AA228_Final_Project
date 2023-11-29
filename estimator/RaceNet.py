@@ -31,8 +31,8 @@ const_bnn_prior_parameters = {
         "prior_sigma": 1.0,
         "posterior_mu_init": 0.0,
         "posterior_rho_init": -3.0,
-        "type": "Flipout",  # Flipout or Reparameterization
-        "moped_enable": False,  # True to initialize mu/sigma from the pretrained dnn weights
+        "type": "Reparameterization",  # Flipout or Reparameterization
+        "moped_enable": True,  # True to initialize mu/sigma from the pretrained dnn weights
         "moped_delta": 0.5,
 }
 
@@ -69,6 +69,7 @@ ids = [
     'DriverID',
     'TeamID',
 ]
+
 weather_cols = [
     'AirTemp',
     'Humidity',
@@ -100,7 +101,9 @@ class RaceNetBranched(torch.nn.Module):
         super().__init__()
         
         self.num_layers = args["num_layers"]
-
+        in_dim_cons = len(cols) - len(ids) - len(lap_cols) + len(weather_cols) + args["emb_dim"]*len(ids) + 1
+        in_dim_laps = len(lap_cols)
+        breakpoint()
         # Initialize Activation Fn
         self.activation = activation
 
@@ -112,7 +115,7 @@ class RaceNetBranched(torch.nn.Module):
         ## Initialize Linear Layers for constant vals
         self.cons_linears = \
             torch.nn.ModuleList(
-                [torch.nn.LazyLinear(out_features=args["hidden_dim"])])
+                [torch.nn.Linear(in_features=in_dim_cons, out_features=args["hidden_dim"])])
         self.cons_linears.extend([torch.nn.Linear(in_features=args["hidden_dim"], out_features=args["hidden_dim"])\
                               for i in range(args["num_layers"]-1)])
         self.cons_linears.append(torch.nn.Linear(in_features=args["hidden_dim"], out_features=args["hidden_dim"]))
@@ -120,7 +123,7 @@ class RaceNetBranched(torch.nn.Module):
         ## Initialize Linear Layers for lap vals
         self.laps_linears = \
             torch.nn.ModuleList(
-                [torch.nn.LazyLinear(out_features=args["hidden_dim"])])
+                [torch.nn.Linear(in_features=in_dim_laps,out_features=args["hidden_dim"])])
         self.laps_linears.extend([torch.nn.Linear(in_features=args["hidden_dim"], out_features=args["hidden_dim"])\
                               for i in range(args["num_layers"]-1)])
 
@@ -225,10 +228,11 @@ class F1Dataset(Dataset):
     def __getitem__(self, idx):
         data = self.inputs.iloc[idx]
         
-        con_cols = [i for i in cols if ((i not in ids) or (i not in lap_cols))]
+        con_cols = [i for i in cols if i not in ids]
+        con_cols = [i for i in con_cols if i not in lap_cols]
         input_cons = data.loc[con_cols + weather_cols]
         input_cons = input_cons.to_numpy(dtype=float)
-
+        breakpoint()
         time_vals = data.loc[time_cols]
         two_sector_time = 0
         for time in time_vals:
@@ -279,7 +283,7 @@ def eval(dataloader, model, loss_fn=F.mse_loss):
 if __name__=="__main__":
     print(torch.cuda.is_available())
     now = datetime.now()
-    filename = 'outputs/racenet_branch_' + now.strftime('%m_%d_%H_%M_%S') +"_"+ str(args["num_layers"]) + "l_" + str(args["hidden_dim"]) + '.pt'
+    filename = 'outputs/racenet_branch_bayes' + now.strftime('%m_%d_%H_%M_%S') +"_"+ str(args["num_layers"]) + "l_" + str(args["hidden_dim"]) + '.pt'
 
     writer = SummaryWriter()
     data = pd.read_hdf("data/f1_dataset.h5")
@@ -294,6 +298,7 @@ if __name__=="__main__":
     test_dataloader = DataLoader(splits[2],batch_size=1000, shuffle=False)
 
     model = RaceNetBranched(args, num_drivers=26, num_tracks=27, num_teams=11)
+    model_state_dict = torch.load("outputs/racenet_branch_11_28_19_47_55_3l_640.pt")
     dnn_to_bnn(model, const_bnn_prior_parameters)
 
     epochs = 60
