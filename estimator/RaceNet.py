@@ -212,7 +212,8 @@ class F1Dataset(Dataset):
     def __getitem__(self, idx):
         data = self.inputs.iloc[idx]
         
-        con_cols = [i for i in cols if ((i not in ids) or (i not in lap_cols))]
+        con_cols = [i for i in cols if i not in ids]
+        con_cols = [i for i in con_cols if i not in lap_cols ]
         input_cons = data.loc[con_cols + weather_cols]
         input_cons = input_cons.to_numpy(dtype=float)
 
