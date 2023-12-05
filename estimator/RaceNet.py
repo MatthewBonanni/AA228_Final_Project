@@ -20,11 +20,11 @@ from tqdm import tqdm
 Timedelta = pd._libs.tslibs.timedeltas.Timedelta
 args = {
       'num_layers': 3,
-      'hidden_dim': 640,
-      'out_dim': 128,
+      'hidden_dim': 320,
+      'out_dim': 16,
       'emb_dim': 10,
       'dropout': 0.4,
-      'num_monte_carlo': 100,
+      'num_monte_carlo': 30,
       'num_heads': 4,
   }
 
@@ -32,11 +32,10 @@ const_bnn_prior_parameters = {
         "prior_mu": 0.0,
         "prior_sigma": 1.0,
         "posterior_mu_init": 0.0,
-        "posterior_rho_init": -3.0,
+        "posterior_rho_init": -1.0,
         "type": "Reparameterization",  # Flipout or Reparameterization
         "moped_enable": False,  # True to initialize mu/sigma from the pretrained dnn weights
         "moped_delta": 0.4,
-      'num_heads': 4,
 }
 
 cols = [
@@ -108,9 +107,6 @@ class RaceNetBranched(torch.nn.Module):
         super().__init__()
         
         self.num_layers = args["num_layers"]
-        in_dim_cons = len(cols) - len(ids) - len(lap_cols) + len(weather_cols) + args["emb_dim"]*len(ids) + 1
-        in_dim_laps = len(lap_cols)
-
         self.cons_dim = args["hidden_dim"]//2
         self.lap_dim = args["hidden_dim"]
 
@@ -130,10 +126,10 @@ class RaceNetBranched(torch.nn.Module):
         ## Initialize Linear Layers for constant vals
         self.cons_linears = \
             torch.nn.ModuleList(
-                [torch.nn.LazyLinear(out_features=args["hidden_dim"])])
-        self.cons_linears.extend([torch.nn.Linear(in_features=args["hidden_dim"], out_features=args["hidden_dim"])\
+                [torch.nn.Linear(in_features=in_cons,out_features=self.cons_dim)])
+        self.cons_linears.extend([torch.nn.Linear(in_features=self.cons_dim, out_features=self.cons_dim)\
                               for i in range(args["num_layers"]-1)])
-        self.cons_linears.append(torch.nn.Linear(in_features=self.cons_dim, out_features=self.cons_dim))
+        #self.cons_linears.append(torch.nn.Linear(in_features=self.cons_dim,out_features=self.cons_dim))
         self.cons_linears.append(torch.nn.Linear(in_features=self.cons_dim,out_features=args["out_dim"]))
 
         self.weath_linears = copy.deepcopy(self.cons_linears)
@@ -142,11 +138,13 @@ class RaceNetBranched(torch.nn.Module):
         ## Initialize Linear Layers for lap vals
         self.laps_linears = \
             torch.nn.ModuleList(
-                [torch.nn.LazyLinear(out_features=args["hidden_dim"])])
-        self.laps_linears.extend([torch.nn.Linear(in_features=args["hidden_dim"], out_features=args["hidden_dim"])\
+                [torch.nn.Linear(in_features=in_laps,out_features=self.lap_dim)])
+        self.laps_linears.extend([torch.nn.Linear(in_features=self.lap_dim, out_features=self.lap_dim)\
                               for i in range(args["num_layers"]-1)])
+        self.laps_linears.append(torch.nn.Linear(in_features=self.lap_dim,out_features=args["out_dim"]))
 
-        self.final_lin = torch.nn.Linear(in_features=args["hidden_dim"]*2, out_features=args["out_dim"])
+
+        self.bias = torch.nn.parameter.Parameter(torch.tensor(0.0))
 
         # Initialize Embeddings For Categorical Data
         track_emb = torch.nn.Embedding(num_embeddings = num_tracks, embedding_dim = args["emb_dim"])
@@ -183,8 +181,11 @@ class RaceNetBranched(torch.nn.Module):
             input_lap = self.batch_norms_lap[i](input_lap)
             input_lap = F.dropout(input_lap, p=self.dropout, training = self.training)
         
-        output = self.final_lin(torch.cat((input_lap,input_cons),dim=1))
-        output = torch.sum(output,dim=1)
+        input_cons = self.cons_linears[-1](input_cons)
+        input_weath = self.weath_linears[-1](input_weath)
+        input_lap = self.laps_linears[-1](input_lap)
+        output = (input_cons*input_weath)
+        output = (input_lap*output).sum(dim=-1) + self.bias
 
         return output 
 
@@ -210,6 +211,9 @@ class RaceNet(torch.nn.Module):
                               for i in range(args["num_layers"]-1)])
         self.linears.append(torch.nn.Linear(in_features=args["hidden_dim"], out_features=args["out_dim"]))
 
+        self.bias = torch.nn.parameter.Parameter(torch.tensor(0.0))
+
+
         # Initialize Embeddings For Categorical Data
         track_emb = torch.nn.Embedding(num_embeddings = num_tracks, embedding_dim = args["emb_dim"])
         driver_emb = torch.nn.Embedding(num_embeddings = num_drivers, embedding_dim = args["emb_dim"])
@@ -234,7 +238,7 @@ class RaceNet(torch.nn.Module):
             input = self.batch_norms[i](input)
             input = F.dropout(input, p=self.dropout, training = self.training)
         
-        output = self.linears[-1](input).sum(dim=-1)
+        output = self.linears[-1](input).sum(dim=-1) + self.bias
 
         return output
 
@@ -259,12 +263,6 @@ class F1Dataset(Dataset):
         input_cons = data.loc[con_cols]
         input_cons = input_cons.to_numpy(dtype=float)
 
-        time_vals = data.loc[time_cols]
-        two_sector_time = 0
-        for time in time_vals:
-            two_sector_time += time.total_seconds()*1000
-        input_cons = np.concatenate([input_cons,[two_sector_time]])
-
         input_lap = data.loc[lap_cols]
         input_lap = input_lap.to_numpy(dtype=float)
 
@@ -278,10 +276,11 @@ class F1Dataset(Dataset):
         input_lap = np.concatenate([input_lap,[time_dat]])
 
         input_ids = data.loc[ids].to_numpy(dtype=int)
-        label = self.lap_times.iloc[idx].total_seconds()*1000
-        return input_lap, input_cons, input_ids, label
+        label = self.lap_times.iloc[idx].total_seconds()
 
-def train(dataloader, model, optimizer, loss_fn=F.mse_loss):
+        return input_lap, input_cons, input_weath, input_ids, label
+
+def train(dataloader, model, optimizer, scheduler, loss_fn=F.mse_loss):
 
     model.train()
     loss = 0
@@ -289,9 +288,10 @@ def train(dataloader, model, optimizer, loss_fn=F.mse_loss):
     for batch in tqdm(dataloader, desc="Iteration"):
         optimizer.zero_grad()
 
-        out = model(batch[0],batch[1],batch[2]).squeeze()
+        out = model(batch[0],batch[1],batch[2],batch[3]).squeeze()
         label = batch[-1].squeeze().to(torch.float32)
-        loss = loss_fn(out, label, reduction="mean")
+        kl = get_kl_loss(model)
+        loss = loss_fn(out, label) + kl
 
         loss.backward()
         optimizer.step()
@@ -302,21 +302,24 @@ def train(dataloader, model, optimizer, loss_fn=F.mse_loss):
 def eval(dataloader, model, loss_fn=F.mse_loss):
 
     model.eval()
-    loss = 0
+    test_acc = 0
 
-    for step, batch in enumerate(tqdm(dataloader, desc="Iteration")):
-
-        out = model(batch[0],batch[1],batch[2]).squeeze()
-        label = batch[-1].squeeze().to(torch.float32)
-
-        loss += loss_fn(out, label)/torch.mean(label)/len(dataloader)
+    with torch.no_grad():
+        for batch in tqdm(dataloader, desc="Iteration"):
+            output_mc = []
+            for mc_run in range(args["num_monte_carlo"]):
+                outs = model(batch[0],batch[1],batch[2],batch[3]).squeeze()
+                output_mc.append(outs)
+            output = torch.stack(output_mc)
+            y_pred = output.mean(dim=0)
+            test_acc += loss_fn(y_pred,batch[-1], reduction="mean")/batch[-1].mean()/len(dataloader)
 
     return test_acc
 
 if __name__=="__main__":
     print(torch.cuda.is_available())
     now = datetime.now()
-    filename = 'outputs/racenet_branch_' + now.strftime('%m_%d_%H_%M_%S') +"_"+ str(args["num_layers"]) + "l_" + str(args["hidden_dim"]) + '.pt'
+    filename = 'outputs/racenet_branhced_bayes_' + now.strftime('%m_%d_%H_%M_%S') +"_"+ str(args["num_layers"]) + "l_" + str(args["hidden_dim"]) + '.pt'
 
     writer = SummaryWriter()
     data = pd.read_hdf("data/f1_dataset.h5")
@@ -327,33 +330,44 @@ if __name__=="__main__":
     train_data = splits[0]
 
     train_dataloader = DataLoader(train_data, batch_size = 1280, shuffle=True)
-    val_dataloader = DataLoader(splits[1],batch_size=1280, shuffle=False)
+    val_dataloader = DataLoader(splits[1],batch_size=640, shuffle=False)
     test_dataloader = DataLoader(splits[2],batch_size=1000, shuffle=False)
 
-    model = RaceNet(args, num_drivers=26, num_tracks=27, num_teams=11)
-    #model_state_dict = torch.load("outputs/racenet_branch_11_28_21_32_30_3l_640.pt")
+    model = RaceNetBranched(args, num_drivers=26, num_tracks=27, num_teams=11)
+    #model_state_dict = torch.load("outputs/racenet_branch_12_05_00_12_3l_640_no_prev.pt")
     #model.load_state_dict(model_state_dict)
     dnn_to_bnn(model, const_bnn_prior_parameters)
 
     epochs = 100
     optimizer = torch.optim.Adam(model.parameters(),lr=0.001,)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10, 0.6)
+    loss_fn = torch.nn.HuberLoss(reduction="mean", delta=1)
 
-    stopper = EarlyStopper(10, 0.005)
+    stopper = EarlyStopper(10, 0.001)
     min_val_loss = np.inf
     for i in range(epochs):
         print("Epoch:", i)
-        train_loss = train(train_dataloader, model, optimizer)
+
+        train_loss, kl_loss = train(train_dataloader, model, optimizer, scheduler, loss_fn)
+        writer.add_scalar('Loss/MSE_loss', train_loss-kl_loss, i)
+        writer.add_scalar('Loss/KL_loss', kl_loss, i)
         writer.add_scalar('Loss/train', train_loss, i)
+
         val_loss = eval(val_dataloader,model,loss_fn=F.l1_loss)
         if val_loss < min_val_loss:
             min_val_loss = val_loss
             if val_loss <= 0.1:
                 torch.save(model.state_dict(), filename)
+
         writer.add_scalar('Accuracy/eval', val_loss, i)
         print("Loss:", train_loss)
         if stopper.early_stop(val_loss):
                 break
-    model_state_dict = torch.load(filename)
-    model.load_state_dict(model_state_dict)
-    test_loss = eval(test_dataloader, model, loss_fn =F.l1_loss)
+        
+    if os.path.exists(filename):
+        model_state_dict = torch.load(filename)
+        model.load_state_dict(model_state_dict)
+    else:
+        torch.save(model.state_dict(), filename)
+    test_loss = eval(test_dataloader, model, loss_fn=F.l1_loss)
     print("Best Model Test Loss:", test_loss)
