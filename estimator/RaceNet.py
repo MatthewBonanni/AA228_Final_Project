@@ -33,6 +33,7 @@ cols = [
     'LapNumber',
     'TyreLife',
     'CompoundID',
+    'Stint',
     'PitStop',
     'YellowFlag',
     'RedFlag',
