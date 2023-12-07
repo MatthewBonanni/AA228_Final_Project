@@ -46,7 +46,9 @@ lap_cols = [
     "LapNumber",
     "TyreLife",
     "CompoundID",
-    "Stint",
+]
+
+events = [
     "PitStop",
     "YellowFlag",
     "RedFlag",
@@ -94,21 +96,22 @@ class RaceNetBranched(torch.nn.Module):
         
         self.num_layers = args["num_layers"]
 
-        self.cons_dim = args["hidden_dim"]//2
-        self.lap_dim = args["hidden_dim"]
+        self.cons_dim = args["hidden_dim"]
+        self.lap_dim = args["hidden_dim"]//2
 
-        in_laps = len(lap_cols) + 1
-        in_cons = len(cols) - len(ids) - len(lap_cols) + args["emb_dim"]*len(ids)
+        in_laps = len(lap_cols)
+        in_cons = len(cols) - len(ids) - len(lap_cols) - len(events) + args["emb_dim"]*len(ids) + 1
         in_weath = len(weather_cols)
+        out_dim = len(events) + 1
 
         # Initialize Linear Layer Activation Fn
         self.activation = activation
 
         self.batch_norms_cons = torch.nn.ModuleList([torch.nn.BatchNorm1d(num_features=self.cons_dim)\
                                                  for i in range(args["num_layers"])])
-        self.batch_norms_weath = copy.deepcopy(self.batch_norms_cons)
         self.batch_norms_lap = torch.nn.ModuleList([torch.nn.BatchNorm1d(num_features=self.lap_dim)\
                                                  for i in range(args["num_layers"])])
+        self.batch_norms_weath = copy.deepcopy(self.batch_norms_lap)
 
         ## Initialize Linear Layers for constant vals
         self.cons_linears = \
@@ -116,11 +119,9 @@ class RaceNetBranched(torch.nn.Module):
                 [torch.nn.Linear(in_features=in_cons,out_features=self.cons_dim)])
         self.cons_linears.extend([torch.nn.Linear(in_features=self.cons_dim, out_features=self.cons_dim)\
                               for i in range(args["num_layers"]-1)])
-        self.cons_linears.append(torch.nn.Linear(in_features=self.cons_dim, out_features=self.cons_dim))
-        self.cons_linears.append(torch.nn.Linear(in_features=self.cons_dim,out_features=args["out_dim"]))
+        #self.cons_linears.append(torch.nn.Linear(in_features=self.cons_dim, out_features=self.cons_dim))
+        self.cons_linears.append(torch.nn.Linear(in_features=self.cons_dim,out_features=out_dim))
 
-        self.weath_linears = copy.deepcopy(self.cons_linears)
-        self.weath_linears[0] = torch.nn.Linear(in_features=in_weath, out_features=self.cons_dim)
 
         ## Initialize Linear Layers for lap vals
         self.laps_linears = \
@@ -128,9 +129,14 @@ class RaceNetBranched(torch.nn.Module):
                 [torch.nn.Linear(in_features=in_laps, out_features=self.lap_dim)])
         self.laps_linears.extend([torch.nn.Linear(in_features=self.lap_dim, out_features=self.lap_dim)\
                               for i in range(args["num_layers"]-1)])
-        self.laps_linears.append(torch.nn.Linear(in_features=self.lap_dim,out_features=args["out_dim"]))
+        self.laps_linears.append(torch.nn.Linear(in_features=self.lap_dim,out_features=out_dim))
+
+                
+        self.weath_linears = copy.deepcopy(self.laps_linears)
+        self.weath_linears[0] = torch.nn.Linear(in_features=in_weath, out_features=self.lap_dim)
 
         self.bias = torch.nn.parameter.Parameter(torch.tensor(0.0))
+        self.alpha = torch.nn.parameter.Parameter(torch.tensor(0.0))
 
         # Initialize Embeddings For Categorical Data
         track_emb = torch.nn.Embedding(num_embeddings = num_tracks, embedding_dim = args["emb_dim"])
@@ -140,7 +146,7 @@ class RaceNetBranched(torch.nn.Module):
 
         self.dropout = args["dropout"]
         
-    def forward(self, batched_lap, batched_cons, batched_weath, batched_ids):
+    def forward(self, batched_lap, batched_cons, batched_weath, batched_ids, batched_events):
         beds = []
         for i, embed in enumerate(self.embs):
             beds.append(embed(batched_ids[:,i]))         
@@ -150,7 +156,9 @@ class RaceNetBranched(torch.nn.Module):
         input_cons = input_cons.to(torch.float32)
         input_weath = batched_weath.to(torch.float32)
         input_lap = batched_lap.to(torch.float32)
+        events_mask = batched_events.to(torch.int)
 
+        # Calculate Embeddings for each input set
         for i in range(self.num_layers):
             input_cons = self.cons_linears[i](input_cons)
             input_cons = self.activation(input_cons)      
@@ -166,12 +174,17 @@ class RaceNetBranched(torch.nn.Module):
             input_lap = self.activation(input_lap)      
             input_lap = self.batch_norms_lap[i](input_lap)
             input_lap = F.dropout(input_lap, p=self.dropout, training = self.training)
-        
+
+        # Predict Base Lap Time
         input_cons = self.cons_linears[-1](input_cons)
+        #Generate Scaling wrt to Weather and Deg
         input_weath = self.weath_linears[-1](input_weath)
         input_lap = self.laps_linears[-1](input_lap)
-        output = (input_cons*input_weath)
-        output = (input_lap*output).sum(dim=-1) + self.bias
+        scale = ((1-self.alpha)*input_weath+(self.alpha)*input_lap)
+        scale = (scale*events_mask).mean(dim=-1)
+
+        output = (input_cons*events_mask).mean(dim=-1)
+        output = output*scale + self.bias
         return output  
 
 class MHRaceNetBranched(torch.nn.Module):
@@ -274,7 +287,7 @@ class RaceNet(torch.nn.Module):
     def __init__(self, args, num_drivers, num_tracks, num_teams,  activation=F.elu):
         super().__init__()
         
-        self.in_dim = len(cols) - len(ids) + len(weather_cols) + args["emb_dim"]*len(ids) + 1
+        self.in_dim = len(cols) - len(ids) + len(weather_cols) + args["emb_dim"]*len(ids) + 2
         #self.in_dim = len(lap_cols) + 1
         self.num_layers = args["num_layers"]
 
@@ -298,13 +311,15 @@ class RaceNet(torch.nn.Module):
         team_emb = torch.nn.Embedding(num_embeddings = num_teams, embedding_dim = args["emb_dim"])
         self.embs = [track_emb, driver_emb, team_emb]
 
+        self.bias = torch.nn.parameter.Parameter(torch.tensor(0.0))
+
         self.dropout = args["dropout"]
         
-    def forward(self, batched_lap, batched_cons, batched_weath, batched_ids):
+    def forward(self, batched_lap, batched_cons, batched_weath, batched_ids, batched_events):
         beds = []
         for i, embed in enumerate(self.embs):
             beds.append(embed(batched_ids[:,i]))         
-        input = torch.cat((batched_lap,batched_cons,batched_weath), dim=1)
+        input = torch.cat((batched_lap,batched_events, batched_cons,batched_weath), dim=1)
         for bed in beds:
             input = torch.cat((input, bed),dim=1)
 
@@ -316,7 +331,7 @@ class RaceNet(torch.nn.Module):
             input = self.batch_norms[i](input)
             input = F.dropout(input, p=self.dropout, training = self.training)
         
-        output = self.linears[-1](input).sum(dim=-1)
+        output = self.linears[-1](input).sum(dim=-1) + self.bias
 
         return output
 
@@ -328,7 +343,7 @@ class F1Dataset(Dataset):
         self.inputs = data[cols + weather_cols + time_cols]
 
         self.lap_times = data["LapTime"]
-        self.deltas = data["LapTime"] - data["PrevLapTime"]
+        self.deltas = data["PrevLapTime"]/data["LapTime"]
 
     def __len__(self):
         return len(self.lap_times)
@@ -337,7 +352,8 @@ class F1Dataset(Dataset):
         data = self.inputs.iloc[idx]
         
         con_cols = [i for i in cols if i not in ids]
-        con_cols = [i for i in con_cols if i not in lap_cols ]
+        con_cols = [i for i in con_cols if i not in lap_cols ]        
+        con_cols = [i for i in con_cols if i not in events]
         input_cons = data.loc[con_cols]
         input_cons = input_cons.to_numpy(dtype=float)
 
@@ -351,12 +367,19 @@ class F1Dataset(Dataset):
         time_dat = 0
         for time in time_vals:
             time_dat += time.total_seconds()
-        input_lap = np.concatenate([input_lap,[time_dat]])
+        input_cons = np.concatenate([[time_dat],input_cons])
 
         input_ids = data.loc[ids].to_numpy(dtype=int)
+
+        input_events = data.loc[events].to_numpy(dtype=int)
+        if input_events.all() == 0:
+            input_events = np.concatenate([[1],input_events])
+        else:
+            input_events = np.concatenate([[0],input_events])
+
         label = self.lap_times.iloc[idx].total_seconds()
     
-        return input_lap, input_cons, input_weath, input_ids, label
+        return input_lap, input_cons, input_weath, input_ids, input_events, label
 
 def train(dataloader, model, optimizer, scheduler, loss_fn=F.mse_loss):
 
@@ -366,7 +389,7 @@ def train(dataloader, model, optimizer, scheduler, loss_fn=F.mse_loss):
     for step, batch in enumerate(tqdm(dataloader, desc="Iteration")):
         optimizer.zero_grad()
 
-        out = model(batch[0],batch[1],batch[2], batch[3]).squeeze()
+        out = model(batch[0],batch[1],batch[2], batch[3], batch[4]).squeeze()
         label = batch[-1].squeeze().to(torch.float32)
         loss = loss_fn(out, label)
 
@@ -383,7 +406,7 @@ def eval(dataloader, model, loss_fn=F.mse_loss):
 
     for step, batch in enumerate(tqdm(dataloader, desc="Iteration")):
 
-        out = model(batch[0],batch[1],batch[2], batch[3]).squeeze()
+        out = model(batch[0],batch[1],batch[2], batch[3], batch[4]).squeeze()
         label = batch[-1].squeeze().to(torch.float32)
 
         loss += loss_fn(out, label)/torch.mean(label).abs()/len(dataloader)
@@ -410,7 +433,7 @@ if __name__=="__main__":
     model = RaceNetBranched(args, num_drivers=26, num_tracks=27, num_teams=11)
 
     epochs = 100
-    optimizer = torch.optim.Adam(model.parameters(),lr=0.005,)
+    optimizer = torch.optim.Adam(model.parameters(),lr=0.001,)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10, 0.6)
     loss_fn = torch.nn.HuberLoss(reduction="mean", delta=1)
 
