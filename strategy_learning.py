@@ -27,7 +27,6 @@ cols = [
     'LapNumber',
     'TyreLife',
     'CompoundID',
-    'Stint',
     'PitStop',
     'YellowFlag',
     'RedFlag',
@@ -40,31 +39,34 @@ lap_cols = [
     "LapNumber",
     "TyreLife",
     "CompoundID",
-    "Stint",
+    ]
+
+events = [
     "PitStop",
     "YellowFlag",
     "RedFlag",
     "SC",
     "VSC",
     'Rainfall',
-]
+    ]
 
 time_cols = [
-    "PrevLapTime"
     ]
 
 ids = [
     'TrackID',
     'DriverID',
     'TeamID',
-]
+    ]
+
 weather_cols = [
     'AirTemp',
     'Humidity',
     'Pressure',
     'TrackTemp',
     'WindDirection',
-    'WindSpeed']
+    'WindSpeed'
+    ]
 
 if __name__ == "__main__":
     filename = "outputs/racenet_branch_12_05_00_12_3l_640.pt"
@@ -83,16 +85,18 @@ if __name__ == "__main__":
     idx = rng.integers(len(dataset))
     
     cons = torch.tensor([dataset[idx][1]])
+    cons = torch.cat(([0.0],cons))
     weath = torch.tensor([dataset[idx][2]])
     id = torch.tensor([[4,10,6]])
-    lap = torch.tensor([[1,1,0,1,0,0,0,0,0,0,0]])
+    lap = torch.tensor([[1,1,0]])
+    events = torch.tensor([1,0,0,0,0,0,0,0])
     lap_time = model(lap,cons,weath,id).item()
 
     for i in tqdm(range(num_laps)):
         lap[0,0:2] += 1
         #lap[0,-1] = lap_time
         delt = 1
-        next_lap_time = model(lap,cons,weath,id).item()
+        next_lap_time = model(lap,cons,weath,id,events).item()
         r = lap_time - next_lap_time
         lap_times[i,0] = lap_time
         lap_times[i,1] = r        

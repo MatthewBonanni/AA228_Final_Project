@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 Timedelta = pd._libs.tslibs.timedeltas.Timedelta
 args = {
-      'num_layers': 4,
+      'num_layers': 3,
       'hidden_dim': 640,
       'out_dim': 128,
       'emb_dim': 10,
@@ -33,7 +33,6 @@ cols = [
     'LapNumber',
     'TyreLife',
     'CompoundID',
-    'Stint',
     'PitStop',
     'YellowFlag',
     'RedFlag',
