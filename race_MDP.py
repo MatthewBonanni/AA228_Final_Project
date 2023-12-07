@@ -7,6 +7,7 @@ import torch
 
 from estimator.RaceNet import RaceNetBranched, F1Dataset
 from learning.RaceMDP import *
+from learning.optimizer import HookeJeeves
 
 args = {
     'num_layers': 3,
@@ -64,7 +65,7 @@ def main():
     data = pd.read_hdf("data/f1_dataset.h5")
     dataset = F1Dataset(data)
 
-    num_laps = 50
+    num_laps = 75
 
     mdp = RaceMDP(model, gamma=0.9)
 
@@ -86,10 +87,10 @@ def main():
                            track_id=13,
                            driver_id=3,
                            team_id=3)
-    state = RaceState(t_im1=0,
+    state = RaceState(t_im1=500,
                       tire_age=1,
                       lap_number=1,
-                      tire_id=0,
+                      tire_id=2,
                       events=events,
                       weather=weather,
                       constants=consts)
@@ -100,9 +101,14 @@ def main():
     policy = AgeBasedRandomTirePolicy(
         [10, 10, 10, 10, 10])
     
-    U = mdp.rollout(policy, depth=10)
+    test_U = mdp.rollout(policy, depth=10)
+
+    opt = HookeJeeves(16, 100, 1, 2)
+
+    policy = opt.eval(policy, mdp.mc_rollout, [num_laps,20])
 
     breakpoint()
+
 
 if __name__ == "__main__":
     main()

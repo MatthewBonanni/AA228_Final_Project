@@ -144,6 +144,10 @@ class Policy():
              tire_age : int,
              tire_id : int) -> int:
         raise NotImplementedError()
+    def get_state(self):
+        raise NotImplementedError()
+    def set_state(self, state: list):
+        raise NotImplementedError()
 
 class RandomPolicy():
     def eval(self,
@@ -162,13 +166,21 @@ class AgeBasedRandomTirePolicy(Policy):
         if tire_age > self.pit_ages[tire_id]:
             return np.random.randint(1,6)
         return 0
+    
+    def get_state(self):
+        return np.array(self.pit_ages,dtype=int)
+    
+    def set_state(self, state: list):
+        self.pit_ages = state
 
 class RaceMDP():
     def __init__(self,
-                 NN : RaceNetBranched,
-                 gamma : float = 0.9):
+                 NN : torch.nn.Module,
+                 gamma : float = 0.9,
+                 num_laps : int = 50):
         self.NN = NN
         self.gamma = gamma
+        self.t_p_estimate = 30.0
 
         self.t_i = 0.0
     
@@ -196,9 +208,10 @@ class RaceMDP():
         self.state.t_im1 = self.t_i
         self.state.lap_number += 1
         if action > 0:
-            self.state.tire_id = action
+            self.state.tire_id = action-1
             self.state.constants.stint += 1
             self.state.tire_age = 1
+            self.state.events.pit_stop = True
         else:
             self.state.tire_age += 1
     
@@ -209,7 +222,21 @@ class RaceMDP():
         for i in range(depth):
             action = policy.eval(self.state.tire_age,
                                  self.state.tire_id)
-            r = self.reward(action)
             self.transition(action)
+            r = self.reward(action)
             ret += self.gamma**(i-1) * r
         return ret
+    
+    def mc_rollout(self,
+                policy : Policy,
+                depth : int,
+                num_rollouts : int):
+        ret = 0.0
+        for m in range(num_rollouts):
+            for i in range(depth):
+                action = policy.eval(self.state.tire_age,
+                                    self.state.tire_id)
+                self.transition(action)
+                r = self.reward(action)
+                ret += self.gamma**(i-1) * r
+        return ret/num_rollouts

@@ -114,4 +114,5 @@ if __name__ == "__main__":
 
     print(lap_times)
     plt.plot([i+1 for i in range(num_laps)],lap_times[:,0],'r')
+    plt.plot([i+1 for i in range(num_laps)],lap_times[:,1],'b')
     plt.show()
