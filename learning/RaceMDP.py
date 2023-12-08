@@ -34,9 +34,9 @@ class RaceEvents():
     def to_tensor(self) -> torch.tensor:
         arr = self.to_array()
         if arr.any():
-            arr = np.concatenate([[1], arr])
-        else:
             arr = np.concatenate([[0], arr])
+        else:
+            arr = np.concatenate([[1], arr])
         return torch.tensor([arr])
 
 class RaceWeather():
@@ -93,13 +93,15 @@ class RaceConstants():
     
     def to_tensor(self) -> torch.tensor:
         return torch.tensor([[0.0,
-                              2000 + self.year,
+                              self.year-21,
                               self.stint]])
     
     def id_tensor(self) -> torch.tensor:
         return torch.tensor([[self.track_id,
                               self.driver_id,
-                              self.team_id]])
+                              self.team_id,
+                              self.year-21,
+                              0]])
 
 class RaceState():
     def __init__(self,
@@ -131,9 +133,8 @@ class RaceState():
         return [torch.tensor([[self.lap_number,
                                self.tire_age,
                                self.tire_id - 1]]),
-                self.constants.to_tensor(),
-                self.weather.to_tensor(),
                 self.constants.id_tensor(),
+                self.weather.to_tensor(),
                 self.events.to_tensor()]
 
 class Policy():
@@ -141,8 +142,7 @@ class Policy():
         return
     
     def eval(self,
-             tire_age : int,
-             tire_id : int) -> int:
+             mdp_state: RaceState) -> int:
         raise NotImplementedError()
     def get_state(self):
         raise NotImplementedError()
@@ -151,8 +151,7 @@ class Policy():
 
 class RandomPolicy():
     def eval(self,
-             tire_age : int,
-             tire_id : int) -> int:
+             mdp_state : RaceState) -> int:
         return np.random.randint(6)
 
 class AgeBasedRandomTirePolicy(Policy):
@@ -161,10 +160,18 @@ class AgeBasedRandomTirePolicy(Policy):
         self.pit_ages = pit_ages
     
     def eval(self,
-             tire_age : int,
-             tire_id : int) -> int:
+             mdp_state: RaceState) -> int:
+        tire_age = mdp_state.tire_age
+        tire_id = mdp_state.tire_id
+        rainfall = mdp_state.events.rainfall
         if tire_age > self.pit_ages[tire_id]:
-            return np.random.randint(1,6)
+            if rainfall: #Check if raining
+                return np.random.randint(5,6+1)
+            
+            next_tire = np.random.randint(1,4+1)
+            while next_tire == tire_id+1:
+                next_tire = np.random.randint(1,4+1)
+            return next_tire
         return 0
     
     def get_state(self):
@@ -220,8 +227,7 @@ class RaceMDP():
                 depth : int):
         ret = 0.0
         for i in range(depth):
-            action = policy.eval(self.state.tire_age,
-                                 self.state.tire_id)
+            action = policy.eval(self.state)
             self.transition(action)
             r = self.reward(action)
             ret += self.gamma**(i-1) * r
@@ -234,8 +240,7 @@ class RaceMDP():
         ret = 0.0
         for m in range(num_rollouts):
             for i in range(depth):
-                action = policy.eval(self.state.tire_age,
-                                    self.state.tire_id)
+                action = policy.eval(self.state)
                 self.transition(action)
                 r = self.reward(action)
                 ret += self.gamma**(i-1) * r

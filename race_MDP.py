@@ -56,7 +56,7 @@ weather_cols = [
     'WindSpeed']
 
 def main():
-    filename = "outputs/racenet_branch_12_05_22_26_3l_640_pred_scale_w_stint.pt"
+    filename = "outputs/racenet_branched_12_08_11_14_3l_640.pt"
     model = RaceNetBranched(args, num_drivers=26, num_tracks=27, num_teams=11)
     model_state_dict = torch.load(filename)
     model.load_state_dict(model_state_dict)
@@ -82,7 +82,7 @@ def main():
                           track_temp=35.0,
                           wind_direction=0.0,
                           wind_speed=1.0)
-    consts = RaceConstants(year=23,
+    consts = RaceConstants(year=22,
                            stint=1,
                            track_id=13,
                            driver_id=3,
@@ -99,9 +99,10 @@ def main():
 
     # Hooke-Jeeves
     policy = AgeBasedRandomTirePolicy(
-        [10, 10, 10, 10, 10])
+        [30, 30, 30, 10, 10])
     
-    test_U = mdp.rollout(policy, depth=10)
+    test_U = mdp.mc_rollout(policy, depth=num_laps, num_rollouts = 20)
+    print("Test U:", test_U.item())
 
     opt = HookeJeeves(16, 100, 1, 2)
 

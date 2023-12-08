@@ -63,7 +63,7 @@ ids = [
     'TrackID',
     'DriverID',
     'TeamID',
-    'Year'
+    'Year',
 ]
 weather_cols = [
     'AirTemp',
@@ -146,7 +146,7 @@ class RaceNetBranched(torch.nn.Module):
         team_emb = torch.nn.Embedding(num_embeddings = num_teams, embedding_dim = args["emb_dim"])
         year_emb = torch.nn.Embedding(num_embeddings = 2, embedding_dim = args["emb_dim"])
 
-        self.embs = [track_emb, driver_emb, team_emb, year_emb]
+        self.embs = torch.nn.ModuleList([track_emb, driver_emb, team_emb, year_emb])
 
         self.dropout = args["dropout"]
         
@@ -188,8 +188,9 @@ class RaceNetBranched(torch.nn.Module):
         scale = (scale*events_mask).mean(dim=-1)
         scale = 1 + self.activation_scale(scale)
 
-        output = (input_cons*events_mask).mean(dim=-1)
+        output = (input_cons*events_mask).sum(dim=-1)/events_mask.sum(dim=-1)
         output = output*scale + self.bias
+        #breakpoint()
         return output  
     
 class RaceNetBranchedPretrainer(torch.nn.Module):
@@ -228,7 +229,7 @@ class RaceNetBranchedPretrainer(torch.nn.Module):
         team_emb = torch.nn.Embedding(num_embeddings = num_teams, embedding_dim = args["emb_dim"])
         year_emb = torch.nn.Embedding(num_embeddings = 2, embedding_dim = args["emb_dim"])
 
-        self.embs = [track_emb, driver_emb, team_emb, year_emb]
+        self.embs = torch.nn.ModuleList([track_emb, driver_emb, team_emb, year_emb])
 
         self.dropout = args["dropout"]
         
@@ -252,8 +253,9 @@ class RaceNetBranchedPretrainer(torch.nn.Module):
         # Predict Base Lap Time
         input_cons = self.cons_linears[-1](input_cons)
 
-        output = (input_cons*events_mask).mean(dim=-1)
+        output = (input_cons*events_mask).sum(dim=-1)/events_mask.sum(dim=-1)
         output = output + self.bias
+        #breakpoint()
         return output  
 
 class MHRaceNetBranched(torch.nn.Module):
@@ -313,7 +315,7 @@ class MHRaceNetBranched(torch.nn.Module):
         team_emb = torch.nn.Embedding(num_embeddings = num_teams, embedding_dim = args["emb_dim"])        
         year_emb = torch.nn.Embedding(num_embeddings = 2, embedding_dim = args["emb_dim"])
 
-        self.embs = [track_emb, driver_emb, team_emb, year_emb]
+        self.embs = torch.nn.ModuleList([track_emb, driver_emb, team_emb, year_emb])
 
         self.dropout = args["dropout"]
         
@@ -382,7 +384,7 @@ class RaceNet(torch.nn.Module):
         driver_emb = torch.nn.Embedding(num_embeddings = num_drivers, embedding_dim = args["emb_dim"])
         team_emb = torch.nn.Embedding(num_embeddings = num_teams, embedding_dim = args["emb_dim"])
         year_emb = torch.nn.Embedding(num_embeddings = 2, embedding_dim = args["emb_dim"])
-        self.embs = [track_emb, driver_emb, team_emb, year_emb]
+        self.embs = torch.nn.ModuleList([track_emb, driver_emb, team_emb, year_emb])
 
         self.bias = torch.nn.parameter.Parameter(torch.tensor(0.0))
 
@@ -491,7 +493,7 @@ if __name__=="__main__":
     data = pd.read_hdf("data/f1_dataset.h5")
     train_data = F1Dataset(data)
     generator = torch.Generator().manual_seed(228328)
-    splits = random_split(train_data, [0.8, 0.1, 0.1], generator)
+    splits = random_split(train_data, [0.8, 0.15, 0.05], generator)
 
     train_data = splits[0]
 
@@ -500,15 +502,15 @@ if __name__=="__main__":
     test_dataloader = DataLoader(splits[2],batch_size=1000, shuffle=False)
 
     model = RaceNetBranched(args, num_drivers=26, num_tracks=27, num_teams=11)
-    pretrained_weights = torch.load('outputs/racenet_pt_12_07_17_20_3l_640.pt')
+    pretrained_weights = torch.load('outputs/racenet_pt_12_08_09_59_3l_640.pt')
     model.load_state_dict(pretrained_weights, strict=False)
 
-    epochs = 60
+    epochs = 50
     optimizer = torch.optim.Adam(model.parameters(),lr=0.005,)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10, 0.4)
     loss_fn = torch.nn.HuberLoss(reduction="mean", delta=1)
 
-    stopper = EarlyStopper(10, 0.005)
+    stopper = EarlyStopper(5, 0.005)
     min_val_loss = np.inf
     for i in range(epochs):
         print("Epoch:", i)

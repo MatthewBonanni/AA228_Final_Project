@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 import torch
 
-from estimator.RaceNet import RaceNetBranched, F1Dataset
+from estimator.RaceNet import RaceNetBranched, RaceNetBranchedPretrainer, F1Dataset
 
 args = {
       'num_layers': 3,
@@ -38,11 +38,10 @@ cols = [
     ]
 
 cons = [
-    'Year',
     'TrackID',
     'DriverID',
-    'TeamID',
-    'Stint',
+    'TeamID',    
+    'Year',
 ]
 
 lap_cols = [
@@ -66,7 +65,8 @@ time_cols = [
 ids = [
     'TrackID',
     'DriverID',
-    'TeamID',
+    'TeamID',    
+    'Year',
     ]
 
 weather_cols = [
@@ -79,7 +79,7 @@ weather_cols = [
     ]
 
 if __name__ == "__main__":
-    filename = "outputs/racenet_branch_12_05_22_26_3l_640_pred_scale_w_stint.pt"
+    filename = "outputs/racenet_branched_12_08_11_14_3l_640.pt"
     model = RaceNetBranched(args, num_drivers=26, num_tracks=27, num_teams=11)
     model_state_dict = torch.load(filename)
     model.load_state_dict(model_state_dict)
@@ -93,20 +93,19 @@ if __name__ == "__main__":
     rng = np.random.default_rng(228)
     lap_times = np.zeros((num_laps,2))
     idx = rng.integers(len(dataset))
-    
+
     cons = torch.tensor([dataset[idx][1]])
-    cons[:,-1] = 1
     weath = torch.tensor([dataset[idx][2]])
-    id = torch.tensor([dataset[idx][3]])
-    lap = torch.tensor([[2,2,0]])
-    events = torch.tensor([1,0,0,0,0,0,0])
-    lap_time = model(lap,cons,weath,id,events).item()
+    lap = torch.tensor([[2,2,2]])
+    events = torch.tensor([dataset[idx][3]])    
+    breakpoint()
+    lap_time = model(lap,cons,weath,events).item()
 
     for i in tqdm(range(num_laps)):
         lap[0,0:2] += 1
         #lap[0,-1] = lap_time
         delt = 1
-        next_lap_time = model(lap,cons,weath,id,events).item()
+        next_lap_time = model(lap,cons,weath,events).item()
         r = lap_time - next_lap_time
         lap_times[i,0] = lap_time
         lap_times[i,1] = r        
