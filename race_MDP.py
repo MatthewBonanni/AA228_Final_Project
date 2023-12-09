@@ -35,8 +35,9 @@ cols = [
 lap_cols = [
     "LapNumber",
     "TyreLife",
-    "CompoundID",
-    "Stint",
+    "CompoundID",]
+
+events = [
     "PitStop",
     "YellowFlag",
     "RedFlag",
@@ -66,8 +67,16 @@ def main():
 
     # data = pd.read_hdf("data/f1_dataset.h5")
     # dataset = F1Dataset(data)
+    track_id = 13
+    filename = "learning/policy/q_learn_track_"+str(track_id)+".npz"
+    if os.path.exists(filename):
+        in_data = np.load(filename, allow_pickle=True)['arr_0'].item()
+    else:
+        raise ValueError("Track hasn't been trained for Q Learn.")
     
-    num_laps = 75
+    breakpoint()
+    num_laps = in_data['ravel'][0]-1
+    start_tire = in_data['start_tire']-1
 
     mdp = RaceMDP(model, gamma=0.9, t_p_estimate=30.0, num_laps=num_laps)
 
@@ -86,13 +95,13 @@ def main():
                           wind_speed=1.0)
     consts = RaceConstants(year=22,
                            stint=1,
-                           track_id=13,
+                           track_id=track_id,
                            driver_id=3,
                            team_id=3)
     state = RaceState(t_im1=500,
                       tire_age=1,
                       lap_number=1,
-                      tire_id=0,
+                      tire_id=start_tire,
                       tire_ids_used=[],
                       events=events,
                       weather=weather,
@@ -109,6 +118,10 @@ def main():
     
     U_init = mdp.rollout(policy, depth=num_laps, reset=True)
     print("Initial U:", U_init.item())
+
+    q_policy = QLearnPolicy(13)
+    U_q = mdp.rollout(q_policy,num_laps,reset=True)
+    print("Q-Learn:", U_q)
 
     # opt = HookeJeeves([16], [[0, num_laps]], 100, 1, [2])
     opt = HookeJeeves([20, 1], [[0, num_laps], [0, 4]], 100, 1, [2, 1])

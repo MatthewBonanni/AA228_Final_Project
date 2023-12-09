@@ -25,7 +25,8 @@ events = [
 class PolicyGen():
     def __init__(self, data, track, num_states=None, disc=0.95):
         race = data[data["TrackID"] == track]
-        race = race[race["PrevLapTime"] > pd.Timedelta(0)]
+        race.loc[:,"PrevLapTime"] = race.loc[:,"PrevLapTime"].mask(race.loc[:,"PrevLapTime"] == pd.Timedelta(0),
+                                                        race.loc[:,"LapTime"])
         track_names = np.loadtxt('data/track_ids.txt',dtype=str,delimiter=',')
         self.track = str(track)
         cols = lap_cols + events
@@ -36,7 +37,7 @@ class PolicyGen():
 
         lt = np.array([i.total_seconds() for i in race.loc[:,"LapTime"]])
         prev_lt = np.array([i.total_seconds() for i in race.loc[:,"PrevLapTime"]])
-        self.reward = lt-prev_lt
+        self.reward = -(lt-prev_lt)
 
         state = race.loc[:,cols].to_numpy(dtype=int)
         next_state = np.zeros(state.shape,dtype=int)
@@ -68,8 +69,7 @@ class PolicyGen():
         self.state = np.ravel_multi_index(state.T, self.ravel_shape)
         self.state_next = np.ravel_multi_index(next_state.T, self.ravel_shape)
         self.num_states = int((2**num_events))
-        self.num_action = num_tires + 1       
-
+        self.num_action = num_tires + 1
         self.U = np.zeros((self.num_states,))
         self.Pi = np.zeros((self.num_states,), dtype=int)
 
@@ -95,7 +95,8 @@ class PolicyGen():
         for s in tqdm(range(start_s,end_s)):
             for a in range(n_action):
                 for sp in state_next[np.logical_and(state==s, action==a)][:]:
-                    if (sp in T_row and ((s)*n_action+a) in T_col):
+                    if (sp in [T_row[i] for i, si in enumerate(T_col) if si==s*n_action+a] 
+                        and ((s)*n_action+a) in T_col):
                         continue
                     T_data.append(state_next[np.logical_and(action==a,np.logical_and(state==s,state_next==sp))].shape[0])
                     T_data[-1]=T_data[-1]/state_next[np.logical_and(action==a,state==s)].shape[0]
@@ -113,7 +114,7 @@ class PolicyGen():
     
         # Estimate Transition and Reward functions
         # Use Threaded fn
-        n_threads = 4
+        n_threads = 1
         procs=[]
         q = Queue()
         

@@ -1,11 +1,15 @@
 import pdb
+import os
 from copy import deepcopy
 import numpy as np
 import torch
+import scipy.sparse as sparse
 
 from estimator.RaceNet import RaceNetBranched
 from .state import RaceState
 from .strategy import Policy
+
+rng = np.random.default_rng(228)
 
 class RaceMDP():
     def __init__(self,
@@ -17,19 +21,35 @@ class RaceMDP():
         self.gamma = gamma
         self.t_p_estimate = t_p_estimate
         self.num_laps = num_laps
+        self.init_state = None
+        self.state = None
+        num_events = 6
+        self.event_ravel=np.array([2 for i in range(6)])
+        self.num_actions = 6
 
         self.t_i = 0.0
     
     def set_init_state(self,
                        state : RaceState) -> None:
         self.init_state = deepcopy(state)
+        track_id = self.init_state.constants.track_id
+        filename = "data/"+str(track_id)+"_T_fn.npz"
+        if os.path.exists(filename):
+            self.T = sparse.load_npz(filename)
+        else:
+            self.T = None
     
     def set_state(self,
                   state : RaceState) -> None:
         self.state = deepcopy(state)
+        if self.init_state == None:
+            self.set_init_state(state)
     
     def reset_state(self) -> None:
-        self.state = deepcopy(self.init_state)
+        if self.init_state is not None:
+            self.state = deepcopy(self.init_state)
+        else:
+            raise ValueError("No Initial State Set")
     
     def __eval_NN(self) -> None:
         self.t_i = self.NN(*self.state.to_NN_args())
@@ -53,11 +73,38 @@ class RaceMDP():
 
         return -1 * ((self.t_i - self.state.t_im1) +
                      self.pit_time(action))
+
+    def get_event_state_int(self, action:int):
+        event_state = self.state.events.to_array().astype(int)
+        event_state = event_state.reshape((1,event_state.shape[0]))
+        event_state_int = np.ravel_multi_index(event_state.T,self.event_ravel)
+        return event_state_int*self.num_actions + action
+
+    def next_event_state(self, action:int):
+        event_state_int = self.get_event_state_int(action)
+        T_probs = self.T[:,event_state_int].toarray().squeeze()
+        if T_probs.sum() == 0:
+            #print(self.state.events.to_list(), "a:", action)
+            T_probs = self.T[:,event_state_int-action].toarray().squeeze()
+        if T_probs.sum() == 0: #Check again if there is not a known transition
+            T_probs[(event_state_int-action)//self.num_actions] = 1.0
+        T_probs = T_probs/T_probs.sum()
+        next_event = rng.choice(T_probs.shape[0],p=T_probs)
+        next_event = np.array(np.unravel_index(next_event,self.event_ravel))
+        if action > 0:
+            next_event[0] = 1
+        else:
+            next_event[0] = 0
+        return next_event
+
     
     def transition(self,
                    action : int) -> None:
         self.state.t_im1 = self.t_i
         self.state.lap_number += 1
+        if self.T is not None:
+            next_event = self.next_event_state(action)
+            self.state.events.set_state(next_event)      
         if action > 0:
             self.state.tire_ids_used += [self.state.tire_id]
             self.state.tire_id = action-1
