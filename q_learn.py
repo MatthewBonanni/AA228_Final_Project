@@ -15,14 +15,14 @@ def main():
         print("Gen Transition model for:", track_name)
         polgen = PolicyGen(data,track)
         T,R = polgen.gen_model()
-        print("Q_learning for:", track_name)
-        qlearn = QLambda(data,track=track)
-        policy = qlearn.solve(100)
-        out_data = {"policy":policy, 
-                    "ravel":qlearn.ravel_shape, 
-                    "start_tire":qlearn.start_tire}
-        filename = "learning/policy/q_learn_track_"+str(track)
-        np.savez(filename, out_data)
+        #print("Q_learning for:", track_name)
+        #qlearn = QLambda(data,track=track)
+        #policy = qlearn.solve(100)
+        #out_data = {"policy":policy, 
+        #            "ravel":qlearn.ravel_shape, 
+        #            "start_tire":qlearn.start_tire}
+        #filename = "learning/policy/q_learn_track_"+str(track)
+        #np.savez(filename, out_data)
 
 if __name__ == "__main__":
     main()

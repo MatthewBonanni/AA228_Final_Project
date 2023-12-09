@@ -67,7 +67,7 @@ def main():
 
     # data = pd.read_hdf("data/f1_dataset.h5")
     # dataset = F1Dataset(data)
-    track_id = 13
+    track_id = 16
     filename = "learning/policy/q_learn_track_"+str(track_id)+".npz"
     if os.path.exists(filename):
         in_data = np.load(filename, allow_pickle=True)['arr_0'].item()
@@ -114,13 +114,13 @@ def main():
     #     np.array([[30, 30, 30, 10, 10]]))
     policy = AgeSequencePolicy(
         np.array([[25, 25],
-                  [0, 0]]))
+                  [start_tire, start_tire]]))
     
     U_init = mdp.rollout(policy, depth=num_laps, reset=True)
     print("Initial U:", U_init.item())
 
-    q_policy = QLearnPolicy(13)
-    U_q = mdp.rollout(q_policy,num_laps,reset=True)
+    q_policy = QLearnPolicy(track_id)
+    U_q = mdp.mc_rollout(q_policy,num_laps,5,reset=True)
     print("Q-Learn:", U_q)
 
     # opt = HookeJeeves([16], [[0, num_laps]], 100, 1, [2])

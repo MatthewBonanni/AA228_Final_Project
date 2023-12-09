@@ -138,6 +138,7 @@ class RaceMDP():
         ret = 0.0
         for m in range(num_rollouts):
             for i in range(depth):
+                self.reset_state()
                 action = policy.eval(self.state)
                 self.transition(action)
                 r = self.reward(action)

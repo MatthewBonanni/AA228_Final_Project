@@ -89,7 +89,10 @@ class QLearnPolicy(Policy):
                           mdp_state.tire_id] +
                           mdp_state.events.to_list())
         state = state.reshape((state.shape[0],1))
-        state_int = np.ravel_multi_index(state, self.ravel_shape)
+        try:
+            state_int = np.ravel_multi_index(state, self.ravel_shape)
+        except:
+            breakpoint()
         action = self.policy[state_int].item()
         #if action > 0:
         #    breakpoint()
