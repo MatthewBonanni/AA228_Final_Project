@@ -91,8 +91,8 @@ class QLearnPolicy(Policy):
         state = state.reshape((state.shape[0],1))
         state_int = np.ravel_multi_index(state, self.ravel_shape)
         action = self.policy[state_int].item()
-        if action > 0:
-            breakpoint()
+        #if action > 0:
+        #    breakpoint()
         return action
     
     def set_parameters(self, parameters: np.array):
