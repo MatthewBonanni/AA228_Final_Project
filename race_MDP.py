@@ -67,7 +67,7 @@ def main():
 
     num_laps = 75
 
-    mdp = RaceMDP(model, gamma=0.9)
+    mdp = RaceMDP(model, gamma=0.9, num_laps=num_laps)
 
     # Set up initial state
     events = RaceEvents(pit_stop=False,

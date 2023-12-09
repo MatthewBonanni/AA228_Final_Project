@@ -65,6 +65,7 @@ ids = [
     'TeamID',
     'Year',
 ]
+
 weather_cols = [
     'AirTemp',
     'Humidity',
