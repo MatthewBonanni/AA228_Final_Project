@@ -52,7 +52,8 @@ class RaceMDP():
             raise ValueError("No Initial State Set")
     
     def __eval_NN(self) -> None:
-        self.t_i = self.NN(*self.state.to_NN_args())
+        with torch.no_grad():
+            self.t_i = self.NN(*self.state.to_NN_args()).item()
     
     def pit_time(self,
                  action : int) -> float:
@@ -146,5 +147,4 @@ class RaceMDP():
         
         if reset:
             self.reset_state()
-
         return ret/num_rollouts

@@ -67,7 +67,7 @@ def main():
 
     # data = pd.read_hdf("data/f1_dataset.h5")
     # dataset = F1Dataset(data)
-    track_id = 16
+    track_id = 13
     filename = "learning/policy/q_learn_track_"+str(track_id)+".npz"
     if os.path.exists(filename):
         in_data = np.load(filename, allow_pickle=True)['arr_0'].item()
@@ -76,7 +76,7 @@ def main():
     
     breakpoint()
     num_laps = in_data['ravel'][0]-1
-    start_tire = in_data['start_tire']-1
+    start_tire = in_data['start_tire']
 
     mdp = RaceMDP(model, gamma=0.9, t_p_estimate=30.0, num_laps=num_laps)
 
@@ -113,25 +113,25 @@ def main():
     # policy = AgeBasedRandomTirePolicy(
     #     np.array([[30, 30, 30, 10, 10]]))
     policy = AgeSequencePolicy(
-        np.array([[25, 25],
+        np.array([[int(num_laps)//3, int(num_laps)//3],
                   [start_tire, start_tire]]))
     
     U_init = mdp.rollout(policy, depth=num_laps, reset=True)
-    print("Initial U:", U_init.item())
+    print("Initial U:", U_init)
 
     q_policy = QLearnPolicy(track_id)
     U_q = mdp.mc_rollout(q_policy,num_laps,5,reset=True)
     print("Q-Learn:", U_q)
 
     # opt = HookeJeeves([16], [[0, num_laps]], 100, 1, [2])
-    opt = HookeJeeves([20, 1], [[0, num_laps], [0, 4]], 100, 1, [2, 1])
+    opt = HookeJeeves([20, 1], [[1, num_laps], [0, 4]], 100, 1, [2, 1])
 
-    policy = opt.eval(policy, mdp.rollout, [num_laps, True])
+    policy = opt.eval(policy, mdp.mc_rollout, [num_laps, 5, True])
     print("Final policy:") 
     print(policy.get_parameters())
 
-    U_final = mdp.rollout(policy, depth=num_laps, reset=True)
-    print("Final U:", U_final.item())
+    U_final = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=5, reset=True)
+    print("Final U:", U_final)
 
 
 if __name__ == "__main__":

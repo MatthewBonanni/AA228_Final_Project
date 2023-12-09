@@ -60,6 +60,10 @@ class AgeSequencePolicy(Policy):
              mdp_state : RaceState) -> int:
         pit_id = np.argwhere(mdp_state.lap_number == np.cumsum(self.ids_ages[0]))
         if len(pit_id > 0):
+            try:
+                int(pit_id)
+            except:
+                breakpoint()
             return 1 + self.ids_ages[1, int(pit_id)]
         return 0
 
