@@ -5,65 +5,68 @@ from copy import copy, deepcopy
 
 from .RaceMDP import Policy
 
-class PolicyOpt():
+class PolicyOptimizer():
     def __init__(self,
-                 step_size : int, 
+                 learning_rates : list,
                  iters : int, 
                  eps : int):
-        self.lr = step_size
+        self.learning_rates = learning_rates
         self.iters = iters
         self.eps = eps
 
     def eval(self):
         raise NotImplementedError
     
-class HookeJeeves(PolicyOpt):
+class HookeJeeves(PolicyOptimizer):
     def __init__(self, 
-                 step_size : int, 
+                 step_sizes : list,
+                 bounds : list,
                  iters : int, 
                  eps : int,
-                 scale_factor : int):
+                 scale_factors : list):
         
-        super().__init__(step_size,iters, eps)
-        self.scale_factor = scale_factor
+        super().__init__(step_sizes, iters, eps)
+        self.bounds = bounds
+        self.scale_factors = scale_factors
         
 
     def eval(self,
-            policy : Policy, 
-            eval_fn: Callable, 
-            eval_fn_args : list):
+             policy : Policy, 
+             eval_fn: Callable, 
+             eval_fn_args : list):
         
-        best_x = np.array(policy.get_state())
-        x = best_x
-        dims = x.shape[0]
+        policy_opt = deepcopy(policy)
 
-        pol = deepcopy(policy)
-        best_y = eval_fn(pol, *eval_fn_args)
+        x = policy_opt.get_parameters()
+        best_x = x
+        best_y = eval_fn(policy_opt, *eval_fn_args)
 
-        alpha = self.lr
-        
-        i = 0
-        for i in range(self.iters):
-            imp = False
-            for i in range(dims):
-                for sign in [-1,1]:
-                    xt = x.copy()
-                    xt[i] = xt[i] + alpha*sign
-                    policy.set_state([s for s in xt])
-                    y = eval_fn(pol, *eval_fn_args)
-                    if y > best_y:
-                        best_x = xt
-                        best_y = y
-                        imp = True
+        learning_rates = self.learning_rates
 
-            if imp == False:
-                alpha = alpha//self.scale_factor
-                if alpha < self.eps:
+        for i_iter in range(self.iters):
+            improvement = False
+            for i_row in range(x.shape[0]):
+                for i_col in range(x.shape[1]):
+                    for sign in [-1,1]:
+                        x_new = deepcopy(x)
+                        x_new[i_row, i_col] += learning_rates[i_row] * sign
+                        x_new[i_row, i_col] = max(self.bounds[i_row][0], x_new[i_row, i_col])
+                        x_new[i_row, i_col] = min(self.bounds[i_row][1], x_new[i_row, i_col])
+                        policy_opt.set_parameters(x_new)
+                        y_new = eval_fn(policy_opt, *eval_fn_args)
+                        if y_new > best_y:
+                            best_x = x_new
+                            best_y = y_new
+                            improvement = True
+
+            if improvement == False:
+                learning_rates = [learning_rates[i_row] // self.scale_factors[i_row]
+                                  for i_row in range(x.shape[0])]
+                if np.all(np.array(learning_rates) <= self.eps):
                     break
-
+            
             x = best_x
             print(best_x)
-            
-        pol.set_state([s for s in best_x])
-        return pol
-                
+         
+        policy_opt.set_parameters(best_x)
+        return policy_opt

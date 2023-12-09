@@ -6,6 +6,8 @@ from tqdm import tqdm
 import torch
 
 from estimator.RaceNet import RaceNetBranched, F1Dataset
+from learning.state import *
+from learning.strategy import *
 from learning.RaceMDP import *
 from learning.optimizer import HookeJeeves
 
@@ -62,12 +64,12 @@ def main():
     model.load_state_dict(model_state_dict)
     model.eval()
 
-    data = pd.read_hdf("data/f1_dataset.h5")
-    dataset = F1Dataset(data)
-
+    # data = pd.read_hdf("data/f1_dataset.h5")
+    # dataset = F1Dataset(data)
+    
     num_laps = 75
 
-    mdp = RaceMDP(model, gamma=0.9, num_laps=num_laps)
+    mdp = RaceMDP(model, gamma=0.9, t_p_estimate=30.0, num_laps=num_laps)
 
     # Set up initial state
     events = RaceEvents(pit_stop=False,
@@ -90,25 +92,33 @@ def main():
     state = RaceState(t_im1=500,
                       tire_age=1,
                       lap_number=1,
-                      tire_id=2,
+                      tire_id=0,
+                      tire_ids_used=[],
                       events=events,
                       weather=weather,
                       constants=consts)
     
+    mdp.set_init_state(state)
     mdp.set_state(state)
 
-    # Hooke-Jeeves
-    policy = AgeBasedRandomTirePolicy(
-        [30, 30, 30, 10, 10])
+    # policy = AgeBasedRandomTirePolicy(
+    #     np.array([[30, 30, 30, 10, 10]]))
+    policy = AgeSequencePolicy(
+        np.array([[25, 25],
+                  [0, 0]]))
     
-    test_U = mdp.mc_rollout(policy, depth=num_laps, num_rollouts = 20)
-    print("Test U:", test_U.item())
+    U_init = mdp.rollout(policy, depth=num_laps, reset=True)
+    print("Initial U:", U_init.item())
 
-    opt = HookeJeeves(16, 100, 1, 2)
+    # opt = HookeJeeves([16], [[0, num_laps]], 100, 1, [2])
+    opt = HookeJeeves([20, 1], [[0, num_laps], [0, 4]], 100, 1, [2, 1])
 
-    policy = opt.eval(policy, mdp.mc_rollout, [num_laps,20])
+    policy = opt.eval(policy, mdp.rollout, [num_laps, True])
+    print("Final policy:") 
+    print(policy.get_parameters())
 
-    breakpoint()
+    U_final = mdp.rollout(policy, depth=num_laps, reset=True)
+    print("Final U:", U_final.item())
 
 
 if __name__ == "__main__":
