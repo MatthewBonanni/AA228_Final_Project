@@ -3,6 +3,7 @@ import os
 from copy import deepcopy
 import numpy as np
 import torch
+from typing import Union
 import scipy.sparse as sparse
 
 from estimator.RaceNet import RaceNetBranched
@@ -32,6 +33,7 @@ class RaceMDP():
     def set_init_state(self,
                        state : RaceState) -> None:
         self.init_state = deepcopy(state)
+        self.t_i = state.t_im1
         track_id = self.init_state.constants.track_id
         filename = "data/"+str(track_id)+"_T_fn.npz"
         if os.path.exists(filename):
@@ -48,6 +50,7 @@ class RaceMDP():
     def reset_state(self) -> None:
         if self.init_state is not None:
             self.state = deepcopy(self.init_state)
+            self.t_i = self.init_state.t_im1
         else:
             raise ValueError("No Initial State Set")
     
@@ -138,8 +141,8 @@ class RaceMDP():
                 reset : bool = True) -> float:
         ret = 0.0
         for m in range(num_rollouts):
+            self.reset_state()
             for i in range(depth):
-                self.reset_state()
                 action = policy.eval(self.state)
                 self.transition(action)
                 r = self.reward(action)
@@ -148,3 +151,30 @@ class RaceMDP():
         if reset:
             self.reset_state()
         return ret/num_rollouts
+    
+    def traj_rollout(self,
+                policy : Policy,
+                depth : int,
+                in_events : Union[np.ndarray,None] = None,
+                reset : bool = True) -> np.ndarray:
+        
+        traj = np.zeros((9,depth))
+        ret = 0.0
+        for i in range(depth):
+            action = policy.eval(self.state)
+            self.transition(action)
+            if in_events is not None:
+                ps = 1 if action > 0 else 0
+                self.state.events.set_state(
+                    np.concatenate([[ps],in_events[:,i]],
+                                   axis=0))
+            r = self.reward(action)
+            ret += self.gamma**(i-1) * r
+            traj[:,i] = np.concatenate([[self.state.lap_number,
+                    self.t_i, self.state.tire_id],
+                    self.state.events.to_array()],axis=0)
+        
+        if reset:
+            self.reset_state()
+
+        return ret, traj

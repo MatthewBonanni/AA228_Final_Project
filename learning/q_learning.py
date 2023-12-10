@@ -64,7 +64,7 @@ class PolicyGenMF():
         self.ravel_shape = np.array([num_laps,num_laps,num_tires] + [2 for i in range(num_events)],dtype=int)
         self.state = np.ravel_multi_index(state.T, self.ravel_shape)
         self.state_next = np.ravel_multi_index(next_state.T, self.ravel_shape)
-
+        
         self.num_states = int((num_laps**2)*num_tires*(2**num_events))
         self.num_action = num_tires + 1       
 
@@ -322,7 +322,6 @@ class QLambda(QLearn):
         self.N = sparse.csr_array(([0],([0],[0])), shape=(self.num_states,self.num_action), dtype=np.float32)
         # Update Q for n-iterations
         self.Q = self.q_update(iter)
-
         self.start_tire = 2
         state = np.repeat(np.array([[2,2,0,0,0,0,0,0,0]]),self.num_action-1, axis=0)
         for i in range(self.num_action-1):
@@ -334,5 +333,4 @@ class QLambda(QLearn):
         except:
             pass
         pi = self.greedy_pol()
-
         return pi

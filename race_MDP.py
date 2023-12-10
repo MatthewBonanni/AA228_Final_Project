@@ -78,7 +78,7 @@ def main():
     num_laps = in_data['ravel'][0]-1
     start_tire = in_data['start_tire']
 
-    mdp = RaceMDP(model, gamma=0.9, t_p_estimate=30.0, num_laps=num_laps)
+    mdp = RaceMDP(model, gamma=0.98, t_p_estimate=30.0, num_laps=num_laps)
 
     # Set up initial state
     events = RaceEvents(pit_stop=False,
@@ -121,6 +121,8 @@ def main():
 
     q_policy = QLearnPolicy(track_id)
     U_q = mdp.mc_rollout(q_policy,num_laps,5,reset=True)
+    _, traj_q = mdp.traj_rollout(q_policy,num_laps,reset=True)
+    breakpoint()
     print("Q-Learn:", U_q)
 
     # opt = HookeJeeves([16], [[0, num_laps]], 100, 1, [2])
@@ -132,6 +134,8 @@ def main():
 
     U_final = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=5, reset=True)
     print("Final U:", U_final)
+    _, traj_u = mdp.traj_rollout(policy, depth=num_laps,in_events = traj_q[-5:,:], reset=True)
+    breakpoint()
 
 
 if __name__ == "__main__":

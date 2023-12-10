@@ -8,7 +8,7 @@ from learning.model_gen import PolicyGen
 
 def main():
     data = pd.read_hdf("data/f1_dataset.h5")
-    tracks = [0,1,2,3,5,6,7]
+    tracks = [0]
     for track in tracks:
         track_names = np.loadtxt('data/track_ids.txt',dtype=str,delimiter=',')
         track_name = track_names[track,1][:-11].replace(' ','_')
