@@ -61,8 +61,7 @@ pl.plot(traj_q[0,:], traj_q[1,:], 'b', label="Q-Learning")
 pl.plot(traj_real[0,:], traj_real[1,:], 'g', label="Real Driver")
 
 pl.plot(traj_opt[0,:][traj_opt[-6,:].nonzero()], traj_opt[1,:][traj_opt[-6,:].nonzero()], 'ro', label="Pit Stop")
-pl.plot(traj_q[0,:][traj_q[-6,:].nonzero()], traj_q[1,:][traj_q[-6,:].nonzero()], 'bo', label="Pit Stop")
-
+pl.plot(traj_q[0,:][traj_q[-6,:].nonzero()], traj_q[1,:][traj_q[-6,:].nonzero()], 'bo')
 pl.plot(traj_real[0,:][traj_real[-6,:].nonzero()], traj_real[1,:][traj_real[-6,:].nonzero()], 'go',)
 
 pl.plot(traj_q[0,:][traj_q[-5,:].nonzero()], traj_q[1,:][traj_q[-5,:].nonzero()], 'y*', label="Yellow Flag")
