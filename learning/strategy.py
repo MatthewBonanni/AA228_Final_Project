@@ -1,4 +1,8 @@
 import numpy as np
+import os
+import warnings
+
+import scipy.sparse as sparse
 
 from .state import RaceState
 
@@ -56,6 +60,10 @@ class AgeSequencePolicy(Policy):
              mdp_state : RaceState) -> int:
         pit_id = np.argwhere(mdp_state.lap_number == np.cumsum(self.ids_ages[0]))
         if len(pit_id > 0):
+            try:
+                int(pit_id)
+            except:
+                breakpoint()
             return 1 + self.ids_ages[1, int(pit_id)]
         return 0
 
@@ -65,3 +73,40 @@ class AgeSequencePolicy(Policy):
     def set_parameters(self,
                        parameters: np.array):
         self.ids_ages = parameters
+
+class QLearnPolicy(Policy):
+
+    def __init__(self,
+                 track_id : int):
+        filename = "learning/policy/q_learn_track_"+str(track_id)+".npz"
+        if os.path.exists(filename):
+            in_data = np.load(filename, allow_pickle=True)['arr_0'].item()
+            self.policy = in_data["policy"]
+            self.ravel_shape = in_data["ravel"]
+        else:
+            raise ValueError("Track hasn't been trained.")
+    
+    def eval(self,
+             mdp_state :RaceState) -> int:
+        state = np.array([mdp_state.lap_number,
+                          mdp_state.tire_age,
+                          mdp_state.tire_id] +
+                          mdp_state.events.to_list())
+        state = state.reshape((state.shape[0],1))
+        try:
+            state_int = np.ravel_multi_index(state, self.ravel_shape)
+        except:
+            breakpoint()
+        action = self.policy[state_int].item()
+        #if action > 0:
+        #    breakpoint()
+        return action
+    
+    def set_parameters(self, parameters: np.array):
+        warnings.warn("Can't set these parameters.")
+    
+    def get_parameters(self):
+        warnings.warn("Can't change this policy")
+
+        
+

@@ -26,7 +26,9 @@ events = [
 class PolicyGenMF():
     def __init__(self, data, track, num_states=None, disc=0.95):
         race = data[data["TrackID"] == track]
-        race = race[race["PrevLapTime"] > pd.Timedelta(0)]
+        #race = race[race["PrevLapTime"] > pd.Timedelta(0)]
+        race.loc[:,"PrevLapTime"] = race.loc[:,"PrevLapTime"].mask(race.loc[:,"PrevLapTime"] == pd.Timedelta(0),
+                                                        race.loc[:,"LapTime"])
         cols = lap_cols+events
         num_laps = race["LapNumber"].max()+1
         num_tires = 5
@@ -35,7 +37,7 @@ class PolicyGenMF():
 
         lt = np.array([i.total_seconds() for i in race.loc[:,"LapTime"]])
         prev_lt = np.array([i.total_seconds() for i in race.loc[:,"PrevLapTime"]])
-        self.reward = lt-prev_lt
+        self.reward = prev_lt-lt
 
         state = race.loc[:,cols].to_numpy(dtype=int)
         next_state = np.zeros(state.shape,dtype=int)
@@ -55,12 +57,11 @@ class PolicyGenMF():
             s = next_state[i,:]
             if s[cols.index("PitStop")] == 1:
                 self.action[i] = s[cols.index("CompoundID")] + 1
-                self.reward[i] = self.reward[i] - 30
+                self.reward[i] = self.reward[i] - 10
             else:
                 self.action[i] = 0
 
         self.ravel_shape = np.array([num_laps,num_laps,num_tires] + [2 for i in range(num_events)],dtype=int)
-        
         self.state = np.ravel_multi_index(state.T, self.ravel_shape)
         self.state_next = np.ravel_multi_index(next_state.T, self.ravel_shape)
 
@@ -100,7 +101,7 @@ class QLearn(PolicyGenMF):
         n_threads = self.state.shape[0]//(50000-1) + 1
 
         q = Queue()
-        for it in range(iter):
+        for it in tqdm(range(iter)):
             procs=[]
 
             for i in range(n_threads):
@@ -146,7 +147,7 @@ class QLearn(PolicyGenMF):
                 break
             else:
                 err_prev = Q_err
-                print("err:", Q_err)
+                #print("err:", Q_err)
         return Q
             
     def fix_duplicates(self, data, row, col, method='mean'):
@@ -173,7 +174,6 @@ class QLearn(PolicyGenMF):
                 
                 dat_out.append(val)
                 indices.append((s,a))
-        print(len(dat_out))
         return np.asarray(dat_out), np.asarray(indices).T
 
     def greedy_pol(self):
@@ -191,6 +191,16 @@ class QLearn(PolicyGenMF):
         self.Q = sparse.csr_array(([0],([0],[0])), shape=(self.num_states,self.num_action), dtype=np.float32)
         # Update Q for n-iterations
         self.Q = self.q_update(iter)
+        self.start_tire = 2
+        max_Q = -np.Inf
+        for i in range(self.num_action-1):
+            state = np.array([[2,2,i,0,0,0,0,0,0]]).T
+            Q_tire = self.Q[np.ravel_multi_index(state,self.ravel_shape),[0]].item()
+            if  Q_tire > max_Q:
+                self.start_tire = i
+                max_Q = Q_tire
+        breakpoint()
+
         pi = self.greedy_pol()
 
         return pi
@@ -210,15 +220,15 @@ class QLambda(QLearn):
 
         s=self.state[idx]; sp = self.state_next[idx]; a = self.action[idx]
         r=self.reward[idx]
-        Q_sa = Q[(s-1),(a-1)]; N_sa = N[(s-1),(a-1)]+1
-        Q_sap = Q_sa + self.alpha*(r + self.disc*Q[(sp-1),:].max(axis=1).todense().flatten() - Q_sa)*N_sa
+        Q_sa = Q[(s),(a)]; N_sa = N[(s),(a)]+1
+        Q_sap = Q_sa + self.alpha*(r + self.disc*Q[(sp),:].max(axis=1).todense().flatten() - Q_sa)*N_sa
         
         if N_sa.any():
-            N_row.extend(s-1); N_col.extend(a-1), N_dat.extend(np.ones(idx.shape)*self.alpha*self.lmda)
+            N_row.extend(s); N_col.extend(a), N_dat.extend(np.ones(idx.shape)*self.alpha*self.lmda)
 
-        out_ids = Q_sap[:] > 1e-6
-        Q_row.extend(s[out_ids]-1)
-        Q_col.extend(a[out_ids]-1)
+        out_ids = np.abs(Q_sap[:]) > 1e-6
+        Q_row.extend(s[out_ids])
+        Q_col.extend(a[out_ids])
         Q_dat.extend(Q_sap[out_ids])
 
         q.put([[Q_dat, Q_row, Q_col],[N_dat, N_row, N_col]], 10)
@@ -231,9 +241,9 @@ class QLambda(QLearn):
 
         # Estimate Q functions
         # Use Threaded fn
-        n_threads = self.state.shape[0]//(50000-1)
+        n_threads = self.state.shape[0]//(50000-1)+1
         q = Queue()
-        for it in range(iter):
+        for it in tqdm(range(iter)):
             procs=[]
 
             for i in range(n_threads):
@@ -295,7 +305,7 @@ class QLambda(QLearn):
                 break
             else:
                 err_prev = Q_err
-                print("err:", Q_err)
+                #print("err:", Q_err)
         self.N = N
         return Q
 
@@ -312,6 +322,17 @@ class QLambda(QLearn):
         self.N = sparse.csr_array(([0],([0],[0])), shape=(self.num_states,self.num_action), dtype=np.float32)
         # Update Q for n-iterations
         self.Q = self.q_update(iter)
+
+        self.start_tire = 2
+        state = np.repeat(np.array([[2,2,0,0,0,0,0,0,0]]),self.num_action-1, axis=0)
+        for i in range(self.num_action-1):
+            state[i,2] = i
+
+        Q_tire = self.Q[np.ravel_multi_index(state.T,self.ravel_shape),[0]]
+        try:
+            self.start_tire = Q_tire.nonzero()[0][np.argmax(Q_tire[Q_tire.nonzero()])]
+        except:
+            pass
         pi = self.greedy_pol()
 
         return pi

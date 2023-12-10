@@ -34,6 +34,16 @@ class RaceEvents():
         else:
             arr = np.concatenate([[1], arr])
         return torch.tensor([arr])
+    
+    def set_state(self,
+                  state:np.ndarray,):
+        state = state.astype(bool)
+        self.pit_stop = state[0]
+        self.yellow_flag = state[1]
+        self.red_flag = state[2]
+        self.safety_car = state[3]
+        self.virtual_safety_car = state[4]
+        self.rainfall = state[5]
 
 class RaceWeather():
     def __init__(self,
