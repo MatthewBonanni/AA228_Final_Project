@@ -114,7 +114,7 @@ def main():
 
     q_policy = QLearnPolicy(track_id)
     U_q = mdp.mc_rollout(q_policy, num_laps, 5, reset=True)
-    _, traj_p = mdp.traj_rollout(policy, depth=num_laps, reset=True)
+    _, traj_p = mdp.traj_rollout(q_policy, depth=num_laps, reset=True)
     breakpoint()
     print("U, Q-Learn:", U_q)
 
