@@ -93,14 +93,16 @@ class RaceMDP():
         event_state = self.state.events.to_array().astype(int)
         event_state = event_state.reshape((1,event_state.shape[0]))
         event_state_int = np.ravel_multi_index(event_state.T,self.event_ravel)
-        return event_state_int*self.num_actions + action
+        return event_state_int*self.num_actions
 
     def next_event_state(self, action:int):
-        event_state_int = self.get_event_state_int(action)
-        T_probs = self.T_event[:,event_state_int].toarray().squeeze()
+        event_state_int = self.get_event_state_int(action).item()
+        T_probs = self.T_event[
+            :,event_state_int:event_state_int+self.num_actions
+            ].toarray().sum(axis=1)
         if T_probs.sum() == 0:
             #print(self.state.events.to_list(), "a:", action)
-            T_probs = self.T_event[:,event_state_int-action].toarray().squeeze()
+            T_probs = self.T_event[:,event_state_int].toarray().squeeze()
         if T_probs.sum() == 0: #Check again if there is not a known transition
             T_probs[(event_state_int-action)//self.num_actions] = 1.0
         T_probs = T_probs/T_probs.sum()
