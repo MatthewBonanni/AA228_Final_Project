@@ -114,8 +114,7 @@ def main():
 
     q_policy = QLearnPolicy(track_id)
     U_q = mdp.mc_rollout(q_policy, num_laps, 5, reset=True)
-    _, traj_p = mdp.traj_rollout(q_policy, depth=num_laps, reset=True)
-    breakpoint()
+    _, traj_q = mdp.traj_rollout(q_policy, depth=num_laps, reset=True)
     print("U, Q-Learn:", U_q)
 
     state.tire_id = -1
@@ -139,7 +138,7 @@ def main():
     U_final = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=10, reset=True)
     print("Final U:", U_final)
     _, traj_u = mdp.traj_rollout(policy, depth=num_laps,in_events = traj_q[-5:,:], reset=True)
-    breakpoint()
+    
 
 
 if __name__ == "__main__":
