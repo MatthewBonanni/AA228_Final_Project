@@ -31,8 +31,6 @@ traj_real = race_data.loc[:,["LapNumber",
                              "VSC",
                              "Rainfall"]].to_numpy(dtype=float)[1:,:].T
 
-breakpoint()
-
 
 events = traj_opt[-5]
 

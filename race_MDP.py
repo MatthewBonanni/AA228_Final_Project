@@ -136,7 +136,7 @@ def main():
     U_init = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=10, reset=True)
     print("Initial U:", U_init)
 
-    opt = HookeJeeves([32, 1], [[0, num_laps], [0, 2]], 5, 1, [2, 1])
+    opt = HookeJeeves([32, 1], [[0, num_laps], [0, 2]], 30, 1, [2, 1])
 
     policy = opt.eval(policy, mdp.mc_rollout, [num_laps, 5, True])
     print("Final policy:") 
@@ -148,7 +148,6 @@ def main():
                                  in_events = events_traj[-5:,:], 
                                  reset=True)
     print("U, Final Policy with Real Events:", U_opt_event)
-    breakpoint()
     np.savez('data/rollout_traj', traj_q = traj_q, 
              U_q = U_q_event, 
              traj_opt = traj_opt, 
