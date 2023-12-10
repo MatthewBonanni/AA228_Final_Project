@@ -105,13 +105,13 @@ def main():
     #     np.array([[30, 30, 30, 10, 10]]))
     policy = AgeSequencePolicy(
         np.array([[25, 25],
-                  [0, 0]]))
+                  [1, 0]]))
     
     U_init = mdp.rollout(policy, depth=num_laps, reset=True)
     print("Initial U:", U_init.item())
 
     # opt = HookeJeeves([16], [[0, num_laps]], 100, 1, [2])
-    opt = HookeJeeves([20, 1], [[0, num_laps], [0, 4]], 100, 1, [2, 1])
+    opt = HookeJeeves([1, 1], [[0, num_laps], [0, 4]], 100, 1, [1, 1])
 
     policy = opt.eval(policy, mdp.rollout, [num_laps, True])
     print("Final policy:") 
