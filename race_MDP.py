@@ -136,9 +136,9 @@ def main():
     U_init = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=10, reset=True)
     print("Initial U:", U_init)
 
-    opt = HookeJeeves([32, 1], [[0, num_laps], [0, 2]], 100, 1, [2, 1])
+    opt = HookeJeeves([32, 1], [[0, num_laps], [0, 2]], 5, 1, [2, 1])
 
-    policy = opt.eval(policy, mdp.mc_rollout, [num_laps, 10, True])
+    policy = opt.eval(policy, mdp.mc_rollout, [num_laps, 5, True])
     print("Final policy:") 
     print(policy.get_parameters())
 

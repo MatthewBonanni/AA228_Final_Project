@@ -3,8 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as pl
 
 data = np.load('data/rollout_traj.npz')
-traj_q = data['traj_q'][:,:-1]
-traj_opt = data['traj_opt'][:,:-1]
+traj_q = data['traj_q']
+traj_opt = data['traj_opt']
 
 # Get Real Traj
 track_id = 13
@@ -16,7 +16,7 @@ race_data = race_data[race_data["DriverID"]==driver_id]
 
 race_data["Reward"] = -(race_data.loc[:,"LapTime"] - race_data.loc[:,"PrevLapTime"])
 race_data.loc[:,"Reward"] = [i.total_seconds() for i in race_data.loc[:,"Reward"]]
-race_data.loc[:,"Reward"] = race_data.loc[:,"Reward"] - 30*race_data["PitStop"] 
+race_data.loc[:,"Reward"] = race_data.loc[:,"Reward"] - 30*race_data.loc[:,"PitStop"] 
 
 race_data.loc[:,"LapTime"] = [i.total_seconds() for i in race_data.loc[:,"LapTime"]]
 
