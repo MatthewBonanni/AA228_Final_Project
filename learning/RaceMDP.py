@@ -37,9 +37,10 @@ class RaceMDP():
         track_id = self.init_state.constants.track_id
         filename = "data/"+str(track_id)+"_T_fn.npz"
         if os.path.exists(filename):
-            self.T = sparse.load_npz(filename)
+            self.T_event = sparse.load_npz(filename)
+            # self.T_event = None
         else:
-            self.T = None
+            self.T_event = None
     
     def set_state(self,
                   state : RaceState) -> None:
@@ -68,13 +69,23 @@ class RaceMDP():
                action : int) -> float:
         self.__eval_NN()
 
-        # Strongly penalize if we didn't use at least 2 types of tires
-        if ((self.state.lap_number >= self.num_laps) and
-            len(np.unique(self.state.tire_ids_used + [self.state.tire_id])) < 2):
-            # print("Not enough tires...")
-            # breakpoint()
+        # Strongly penalize if we never put on a first tire
+        if self.state.tire_id == -1:
             return -1e6
+        
+        # Return 0 on second lap to account for lap time initialization
+        # (and initial tire change)
+        if self.state.lap_number == 2:
+            return 0.0
 
+        # Strongly penalize if we didn't use at least 2 types of tires
+        # (tire_id of -1 doesn't count)
+        unique_tires = list(set([i for i in self.state.tire_ids_used if i != -1]))
+        unique_tires += [self.state.tire_id]
+        if ((self.state.lap_number >= self.num_laps) and
+            len(unique_tires) < 2):
+            return -1e6
+        
         return -1 * ((self.t_i - self.state.t_im1) +
                      self.pit_time(action))
 
@@ -86,10 +97,10 @@ class RaceMDP():
 
     def next_event_state(self, action:int):
         event_state_int = self.get_event_state_int(action)
-        T_probs = self.T[:,event_state_int].toarray().squeeze()
+        T_probs = self.T_event[:,event_state_int].toarray().squeeze()
         if T_probs.sum() == 0:
             #print(self.state.events.to_list(), "a:", action)
-            T_probs = self.T[:,event_state_int-action].toarray().squeeze()
+            T_probs = self.T_event[:,event_state_int-action].toarray().squeeze()
         if T_probs.sum() == 0: #Check again if there is not a known transition
             T_probs[(event_state_int-action)//self.num_actions] = 1.0
         T_probs = T_probs/T_probs.sum()
@@ -100,13 +111,12 @@ class RaceMDP():
         else:
             next_event[0] = 0
         return next_event
-
     
     def transition(self,
                    action : int) -> None:
         self.state.t_im1 = self.t_i
         self.state.lap_number += 1
-        if self.T is not None:
+        if self.T_event is not None:
             next_event = self.next_event_state(action)
             self.state.events.set_state(next_event)      
         if action > 0:

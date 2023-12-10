@@ -41,9 +41,15 @@ class HookeJeeves(PolicyOptimizer):
         best_x = x
         best_y = eval_fn(policy_opt, *eval_fn_args)
 
+        print("Initial policy:")
+        print(best_x)
+        print("U = {0}".format(best_y))
+
         learning_rates = self.learning_rates
 
         for i_iter in range(self.iters):
+            print("----------")
+            print("Iteration {0}...".format(i_iter))
             improvement = False
             for i_row in range(x.shape[0]):
                 for i_col in range(x.shape[1]):
@@ -58,6 +64,9 @@ class HookeJeeves(PolicyOptimizer):
                             best_x = x_new
                             best_y = y_new
                             improvement = True
+                        
+                        # print(x_new)
+                        # breakpoint()
 
             if improvement == False:
                 learning_rates = [learning_rates[i_row] // self.scale_factors[i_row]
@@ -66,7 +75,9 @@ class HookeJeeves(PolicyOptimizer):
                     break
             
             x = best_x
+            print("Best policy:")
             print(best_x)
-         
+            print("U = {0}".format(best_y))
+
         policy_opt.set_parameters(best_x)
         return policy_opt

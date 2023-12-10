@@ -74,11 +74,13 @@ def main():
     else:
         raise ValueError("Track hasn't been trained for Q Learn.")
     
-    breakpoint()
     num_laps = in_data['ravel'][0]-1
     start_tire = in_data['start_tire']
 
-    mdp = RaceMDP(model, gamma=0.98, t_p_estimate=30.0, num_laps=num_laps)
+    mdp = RaceMDP(model,
+                  gamma=1.0,
+                  t_p_estimate=30.0,
+                  num_laps=num_laps)
 
     # Set up initial state
     events = RaceEvents(pit_stop=False,
@@ -110,29 +112,31 @@ def main():
     mdp.set_init_state(state)
     mdp.set_state(state)
 
-    # policy = AgeBasedRandomTirePolicy(
-    #     np.array([[30, 30, 30, 10, 10]]))
+    q_policy = QLearnPolicy(track_id)
+    U_q = mdp.mc_rollout(q_policy, num_laps, 5, reset=True)
+    print("U, Q-Learn:", U_q)
+
+    state.tire_id = -1
+    state.stint = 0
+    mdp.set_init_state(state)
+    mdp.set_state(state)
+
     policy = AgeSequencePolicy(
-        np.array([[int(num_laps)//3, int(num_laps)//3],
-                  [start_tire, start_tire]]))
+        np.array([[1, int(num_laps)//3, int(num_laps)//3],
+                  [0, 0, 0]]))
     
-    U_init = mdp.rollout(policy, depth=num_laps, reset=True)
+    U_init = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=10, reset=True)
     print("Initial U:", U_init)
 
     q_policy = QLearnPolicy(track_id)
     U_q = mdp.mc_rollout(q_policy,num_laps,5,reset=True)
-    _, traj_q = mdp.traj_rollout(q_policy,num_laps,reset=True)
-    breakpoint()
     print("Q-Learn:", U_q)
 
-    # opt = HookeJeeves([16], [[0, num_laps]], 100, 1, [2])
-    opt = HookeJeeves([20, 1], [[1, num_laps], [0, 4]], 100, 1, [2, 1])
-
-    policy = opt.eval(policy, mdp.mc_rollout, [num_laps, 5, True])
+    policy = opt.eval(policy, mdp.mc_rollout, [num_laps, 10, True])
     print("Final policy:") 
     print(policy.get_parameters())
 
-    U_final = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=5, reset=True)
+    U_final = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=10, reset=True)
     print("Final U:", U_final)
     _, traj_u = mdp.traj_rollout(policy, depth=num_laps,in_events = traj_q[-5:,:], reset=True)
     breakpoint()

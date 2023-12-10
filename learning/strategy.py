@@ -59,12 +59,8 @@ class AgeSequencePolicy(Policy):
     def eval(self,
              mdp_state : RaceState) -> int:
         pit_id = np.argwhere(mdp_state.lap_number == np.cumsum(self.ids_ages[0]))
-        if len(pit_id > 0):
-            try:
-                int(pit_id)
-            except:
-                breakpoint()
-            return 1 + self.ids_ages[1, int(pit_id)]
+        if len(pit_id) > 0:
+            return 1 + self.ids_ages[1, int(pit_id[-1])]
         return 0
 
     def get_parameters(self):
@@ -98,8 +94,6 @@ class QLearnPolicy(Policy):
         except:
             breakpoint()
         action = self.policy[state_int].item()
-        #if action > 0:
-        #    breakpoint()
         return action
     
     def set_parameters(self, parameters: np.array):
