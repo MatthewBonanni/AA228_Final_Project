@@ -29,6 +29,9 @@ class PolicyGenMF():
         #race = race[race["PrevLapTime"] > pd.Timedelta(0)]
         race.loc[:,"PrevLapTime"] = race.loc[:,"PrevLapTime"].mask(race.loc[:,"PrevLapTime"] == pd.Timedelta(0),
                                                         race.loc[:,"LapTime"])
+        
+        self.start_tire = race.loc[:,"CompoundID"][race.loc[:,"LapNumber"]==1].mean()
+        self.start_tire = round(self.start_tire)
         cols = lap_cols+events
         num_laps = race["LapNumber"].max()+1
         num_tires = 5
@@ -37,7 +40,7 @@ class PolicyGenMF():
 
         lt = np.array([i.total_seconds() for i in race.loc[:,"LapTime"]])
         prev_lt = np.array([i.total_seconds() for i in race.loc[:,"PrevLapTime"]])
-        self.reward = prev_lt-lt
+        self.reward = -(lt-prev_lt)
 
         state = race.loc[:,cols].to_numpy(dtype=int)
         next_state = np.zeros(state.shape,dtype=int)
@@ -322,7 +325,7 @@ class QLambda(QLearn):
         self.N = sparse.csr_array(([0],([0],[0])), shape=(self.num_states,self.num_action), dtype=np.float32)
         # Update Q for n-iterations
         self.Q = self.q_update(iter)
-        self.start_tire = 2
+
         state = np.repeat(np.array([[2,2,0,0,0,0,0,0,0]]),self.num_action-1, axis=0)
         for i in range(self.num_action-1):
             state[i,2] = i

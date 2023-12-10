@@ -156,8 +156,8 @@ class PolicyGen():
         R = sparse.csr_array((np.asarray(R_data),(np.asarray(R_row),np.asarray(R_col))),
                             shape=(self.num_states,self.num_action), dtype=np.float32,)
         
-        sparse.save_npz("data/"+self.track+"_T_fn.npz", T)
-        sparse.save_npz("data/"+self.track+"_R_fn.npz", R)
+        sparse.save_npz("data/T_fns/"+self.track+"_T_fn.npz", T)
+        sparse.save_npz("data/R_fns/"+self.track+"_R_fn.npz", R)
 
         return T, R
     

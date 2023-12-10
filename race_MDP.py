@@ -68,14 +68,18 @@ def main():
     # data = pd.read_hdf("data/f1_dataset.h5")
     # dataset = F1Dataset(data)
     track_id = 13
-    filename = "learning/policy/q_learn_track_"+str(track_id)+".npz"
+    filename = "learning/policy/q_pols/q_learn_track_"+str(track_id)+".npz"
     if os.path.exists(filename):
-        in_data = np.load(filename, allow_pickle=True)['arr_0'].item()
+        in_data = np.load(filename, allow_pickle=True)
     else:
         raise ValueError("Track hasn't been trained for Q Learn.")
     
-    num_laps = in_data['ravel'][0]-1
-    start_tire = in_data['start_tire']
+    # Load events trajectory
+    filename = "data/"+str(track_id)+"_2022_events.npz"
+    events_traj = np.load(filename, allow_pickle=True)['events_traj'][:,1:]
+
+    num_laps = events_traj.shape[-1]
+    start_tire = in_data["start_tire"].item()
 
     mdp = RaceMDP(model,
                   gamma=1.0,
@@ -89,12 +93,12 @@ def main():
                         safety_car=False,
                         virtual_safety_car=False,
                         rainfall=False)
-    weather = RaceWeather(air_temp=25.0,
-                          humidity=55.0,
-                          pressure=980.0,
-                          track_temp=35.0,
-                          wind_direction=0.0,
-                          wind_speed=1.0)
+    weather = RaceWeather(air_temp=28.2,
+                          humidity=31.28,
+                          pressure=993.05,
+                          track_temp=43.32,
+                          wind_direction=186.72,
+                          wind_speed=1.59)
     consts = RaceConstants(year=22,
                            stint=1,
                            track_id=track_id,
@@ -114,8 +118,11 @@ def main():
 
     q_policy = QLearnPolicy(track_id)
     U_q = mdp.mc_rollout(q_policy, num_laps, 5, reset=True)
-    _, traj_q = mdp.traj_rollout(q_policy, depth=num_laps, reset=True)
+    U_q_event, traj_q = mdp.traj_rollout(q_policy, depth=num_laps,
+                                  in_events=events_traj[-5:,:],
+                                  reset=True)
     print("U, Q-Learn:", U_q)
+    print("U, Q-Learn with Real Events:", U_q_event)
 
     state.tire_id = -1
     state.stint = 0
@@ -129,7 +136,7 @@ def main():
     U_init = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=10, reset=True)
     print("Initial U:", U_init)
 
-    opt = HookeJeeves([1, 1], [[0, num_laps], [0, 2]], 100, 1, [1, 1])
+    opt = HookeJeeves([32, 1], [[0, num_laps], [0, 2]], 100, 1, [2, 1])
 
     policy = opt.eval(policy, mdp.mc_rollout, [num_laps, 10, True])
     print("Final policy:") 
@@ -137,8 +144,16 @@ def main():
 
     U_final = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=10, reset=True)
     print("Final U:", U_final)
-    _, traj_u = mdp.traj_rollout(policy, depth=num_laps,in_events = traj_q[-5:,:], reset=True)
-    
+    U_opt_event, traj_opt = mdp.traj_rollout(policy, depth=num_laps,
+                                 in_events = events_traj[-5:,:], 
+                                 reset=True)
+    print("U, Final Policy with Real Events:", U_opt_event)
+    breakpoint()
+    np.savez('data/rollout_traj', traj_q = traj_q, 
+             U_q = U_q_event, 
+             traj_opt = traj_opt, 
+             U_opt = U_opt_event)
+
 
 
 if __name__ == "__main__":

@@ -74,9 +74,9 @@ class QLearnPolicy(Policy):
 
     def __init__(self,
                  track_id : int):
-        filename = "learning/policy/q_learn_track_"+str(track_id)+".npz"
+        filename = "learning/policy/q_pols/q_learn_track_"+str(track_id)+".npz"
         if os.path.exists(filename):
-            in_data = np.load(filename, allow_pickle=True)['arr_0'].item()
+            in_data = np.load(filename, allow_pickle=True)
             self.policy = in_data["policy"]
             self.ravel_shape = in_data["ravel"]
         else:

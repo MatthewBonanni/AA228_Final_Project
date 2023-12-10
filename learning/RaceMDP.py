@@ -35,7 +35,7 @@ class RaceMDP():
         self.init_state = deepcopy(state)
         self.t_i = state.t_im1
         track_id = self.init_state.constants.track_id
-        filename = "data/"+str(track_id)+"_T_fn.npz"
+        filename = "data/T_fns/"+str(track_id)+"_T_fn.npz"
         if os.path.exists(filename):
             self.T_event = sparse.load_npz(filename)
             # self.T_event = None
@@ -83,7 +83,7 @@ class RaceMDP():
         unique_tires = list(set([i for i in self.state.tire_ids_used if i != -1]))
         unique_tires += [self.state.tire_id]
         if ((self.state.lap_number >= self.num_laps) and
-            len(unique_tires) < 2):
+            len(np.unique(unique_tires)) < 2):
             return -1e6
         
         return -1 * ((self.t_i - self.state.t_im1) +
@@ -124,7 +124,10 @@ class RaceMDP():
             self.state.tire_id = action-1
             self.state.constants.stint += 1
             self.state.tire_age = 1
-            self.state.events.pit_stop = True
+            if self.state.lap_number > 2:
+                self.state.events.pit_stop = True
+            else:
+                self.state.events.pit_stop = False
         else:
             self.state.tire_age += 1
     
@@ -168,20 +171,23 @@ class RaceMDP():
                 in_events : Union[np.ndarray,None] = None,
                 reset : bool = True) -> np.ndarray:
         
-        traj = np.zeros((9,depth))
+        traj = np.zeros((10,depth))
         ret = 0.0
         for i in range(depth):
             action = policy.eval(self.state)
             self.transition(action)
             if in_events is not None:
-                ps = 1 if action > 0 else 0
+                if i > 0:
+                    ps = 1 if action > 0 else 0
+                else:
+                    ps = 0
                 self.state.events.set_state(
                     np.concatenate([[ps],in_events[:,i]],
                                    axis=0))
             r = self.reward(action)
             ret += self.gamma**(i-1) * r
             traj[:,i] = np.concatenate([[self.state.lap_number,
-                    self.t_i, self.state.tire_id],
+                    self.t_i, r, self.state.tire_id],
                     self.state.events.to_array()],axis=0)
         
         if reset:
