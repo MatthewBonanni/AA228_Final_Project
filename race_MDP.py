@@ -114,6 +114,8 @@ def main():
 
     q_policy = QLearnPolicy(track_id)
     U_q = mdp.mc_rollout(q_policy, num_laps, 5, reset=True)
+    _, traj_p = mdp.traj_rollout(policy, depth=num_laps, reset=True)
+    breakpoint()
     print("U, Q-Learn:", U_q)
 
     state.tire_id = -1
@@ -128,9 +130,7 @@ def main():
     U_init = mdp.mc_rollout(policy, depth=num_laps, num_rollouts=10, reset=True)
     print("Initial U:", U_init)
 
-    q_policy = QLearnPolicy(track_id)
-    U_q = mdp.mc_rollout(q_policy,num_laps,5,reset=True)
-    print("Q-Learn:", U_q)
+    opt = HookeJeeves([1, 1], [[0, num_laps], [0, 2]], 100, 1, [1, 1])
 
     policy = opt.eval(policy, mdp.mc_rollout, [num_laps, 10, True])
     print("Final policy:") 
