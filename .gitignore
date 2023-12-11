@@ -161,3 +161,11 @@ cython_debug/
 
 # Tensorboard visualization data
 runs/*
+
+# Real Events Data
+data/*_events.npz
+data/*traj.npz
+
+# Old NN Models
+outputs/old_models
+outputs/old_models/*
