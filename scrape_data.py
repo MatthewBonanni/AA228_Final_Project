@@ -137,11 +137,29 @@ for year in years:
                             session.weather_data.loc[session.weather_data.index[i_weather],
                                                     weather_cols]
 
+        # Add Prev Lap times
+        prev_lap_time = []
+        for idx in tqdm(range(len(lap_data))):
+            id = lap_data.iloc[idx].loc[["DriverID",
+                                    "TeamID",
+                                    "LapNumber"]]
+            
+            if id["LapNumber"] == 1:
+                prev_lap_time.append(pd.Timedelta(0.0))
+                continue
+
+            if (lap_data.iloc[idx-1].loc["DriverID"]==id["DriverID"]).to_numpy().all():
+                prev_lap_time.append(data.iloc[idx-1].loc["LapTime"])
+            else:
+                prev_lap_time.append(pd.Timedelta(0.0))
+
+        lap_data["PrevLapTime"] = prev_lap_time
+
         if len(data) == 0:
             data = lap_data[cols + weather_cols]
         else:
             data = pd.concat([data, lap_data[cols + weather_cols]])
-
+    
     # Save data
     data.to_hdf("data/f1_dataset.h5", key="data", format='fixed', mode='w')
 
