@@ -11,7 +11,7 @@ Use the file `scrape_data.py` to collect race data from the [FastF1 API.](https:
 * Driver Names, Team Names, and Track Names are converted to integer IDs in the dataset. The key to correlate these IDs to the names are stored in the `data` folder.
 
 ## 2. Train the Lap Time Predictor (Optional)
-We provide a pretrained model for predicting lap times based on race state in the `outputs` folder that is already integrated into our MDP policy evaluation. However if you are adding data or want to try to improve the Neural Net, use the `estimator/RaceNet.py` to train the neural network. The model is trained using Pytorch and having experience with training models in this framework is very helpful.
+We provide a pretrained model for predicting lap times based on race state in the `outputs` folder that is already integrated into our MDP policy evaluation. However if you are adding data or want to try to improve the estimator, use the `estimator/RaceNet.py` to train the neural network. The model is trained using Pytorch and having experience with training models in this framework is very helpful.
 
 ## 3. Offline Policy Training
 Use the `q_learn.py` file to perform offline training. This file generates race strategy policies for the tracks specified in the `tracks` list. These policies are then stored in the `learning/q_pols` folder. This script also generates transition models for the on-track events. These transition models are not required for policy evaluation, but help provide more realistic results in policy optimization. Some track Q-learning policies and transition functions are provided.
