@@ -143,7 +143,10 @@ for year in years:
             id = lap_data.iloc[idx].loc[["DriverID",
                                     "TeamID",
                                     "LapNumber"]]
-            
+            if idx ==0:
+                prev_lap_time.append(pd.Timedelta(0.0))
+                continue
+
             if id["LapNumber"] == 1:
                 prev_lap_time.append(pd.Timedelta(0.0))
                 continue
@@ -151,7 +154,7 @@ for year in years:
             if (lap_data.iloc[idx-1].loc["DriverID"]==id["DriverID"]).to_numpy().all():
                 prev_lap_time.append(data.iloc[idx-1].loc["LapTime"])
             else:
-                prev_lap_time.append(pd.Timedelta(0.0))
+                prev_lap_time.append(pd.NaT)
 
         lap_data["PrevLapTime"] = prev_lap_time
 
