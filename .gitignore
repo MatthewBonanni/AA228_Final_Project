@@ -167,5 +167,8 @@ data/*_events.npz
 data/*traj.npz
 
 # Old NN Models
-outputs/old_models
 outputs/old_models/*
+outputs/old_models
+
+# Reward Fns that don't get used
+data/R_fns/*
